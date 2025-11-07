@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A lightweight, minimalistic code editor and note-taking app">
+    <meta name="theme-color" content="#e91e8c">
+    <title>hotNote</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <img src="/icon-192.png" alt="hotNote" class="app-icon">
+            <div class="nav-controls">
+                <button id="back-btn" title="Go back" disabled>←</button>
+                <button id="forward-btn" title="Go forward" disabled>→</button>
+                <button id="folder-up-btn" title="Go up one folder" disabled>↑</button>
+            </div>
+            <button id="new-btn" title="New file (Ctrl/Cmd+N)">□</button>
+            <nav class="breadcrumb" id="breadcrumb">
+                <span class="breadcrumb-item">untitled</span>
+            </nav>
+            <div class="actions">
+                <label class="autosave-toggle">
+                    <input type="checkbox" id="autosave-checkbox">
+                    <span>autosave</span>
+                </label>
+                <button id="dark-mode-toggle" title="Switch to dark mode">○</button>
+                <button id="rich-toggle-btn" class="hidden" title="Toggle rich markdown editor">rich</button>
+            </div>
+        </header>
+        <div id="file-picker" class="file-picker hidden"></div>
+        <div id="editor"></div>
+    </div>
+    <script type="module" src="/app.js"></script>
+</body>
+</html>

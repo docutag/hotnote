@@ -1,0 +1,51 @@
+{
+  "name": "hotnote",
+  "version": "0.1.0",
+  "description": "A lightweight, minimalistic code editor and note-taking app",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
+  },
+  "dependencies": {
+    "@codemirror/lang-cpp": "^6.0.3",
+    "@codemirror/lang-css": "^6.3.0",
+    "@codemirror/lang-go": "^6.0.1",
+    "@codemirror/lang-html": "^6.4.9",
+    "@codemirror/lang-java": "^6.0.2",
+    "@codemirror/lang-javascript": "^6.2.2",
+    "@codemirror/lang-json": "^6.0.1",
+    "@codemirror/lang-markdown": "^6.2.5",
+    "@codemirror/lang-php": "^6.0.2",
+    "@codemirror/lang-python": "^6.1.6",
+    "@codemirror/lang-rust": "^6.0.2",
+    "@codemirror/lang-xml": "^6.1.0",
+    "@codemirror/lang-yaml": "^6.1.2",
+    "@codemirror/language": "^6.10.3",
+    "@codemirror/legacy-modes": "^6.5.2",
+    "@codemirror/state": "^6.4.1",
+    "@codemirror/view": "^6.34.1",
+    "@milkdown/core": "^7.17.1",
+    "@milkdown/ctx": "^7.17.1",
+    "@milkdown/plugin-history": "^7.17.1",
+    "@milkdown/plugin-listener": "^7.17.1",
+    "@milkdown/preset-commonmark": "^7.17.1",
+    "@milkdown/prose": "^7.17.1",
+    "@milkdown/theme-nord": "^7.17.1",
+    "codemirror": "^6.0.1"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^1.0.4",
+    "@vitest/ui": "^1.0.4",
+    "happy-dom": "^12.10.3",
+    "jsdom": "^23.0.1",
+    "patch-package": "^8.0.0",
+    "sharp": "^0.34.5",
+    "vite": "^5.4.11",
+    "vitest": "^1.0.4"
+  }
+}
