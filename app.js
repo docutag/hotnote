@@ -1,6 +1,7 @@
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
-import { syntaxHighlighting, defaultHighlightStyle, StreamLanguage } from '@codemirror/language';
+import { syntaxHighlighting, HighlightStyle, StreamLanguage } from '@codemirror/language';
+import { tags } from '@lezer/highlight';
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
 import { html } from '@codemirror/lang-html';
@@ -78,6 +79,48 @@ const clearTempChanges = (key) => {
 const hasTempChanges = (key) => {
     return localStorage.getItem(TEMP_STORAGE_PREFIX + key) !== null;
 };
+
+// Custom syntax highlighting using brand colors (light mode - darker muted)
+const brandHighlightStyle = HighlightStyle.define([
+    { tag: tags.keyword, color: '#a65580', fontWeight: '500' },          // darker muted pink
+    { tag: tags.operator, color: '#7a65ad' },                             // darker muted purple
+    { tag: tags.variableName, color: '#5a9cb8' },                         // darker muted cyan
+    { tag: tags.string, color: '#5a9cb8' },                               // darker muted cyan
+    { tag: tags.number, color: '#7a65ad' },                               // darker muted purple
+    { tag: tags.bool, color: '#7a65ad' },                                 // darker muted purple
+    { tag: tags.comment, color: '#999999', fontStyle: 'italic' },         // gray
+    { tag: tags.tagName, color: '#5a9cb8' },                              // darker muted cyan
+    { tag: tags.attributeName, color: '#a65580' },                        // darker muted pink
+    { tag: tags.propertyName, color: '#5a9cb8' },                         // darker muted cyan
+    { tag: tags.function(tags.variableName), color: '#5a9cb8', fontWeight: '500' }, // darker muted cyan
+    { tag: tags.className, color: '#a65580' },                            // darker muted pink
+    { tag: tags.typeName, color: '#a65580' },                             // darker muted pink
+    { tag: tags.regexp, color: '#7a65ad' },                               // darker muted purple
+    { tag: tags.escape, color: '#a65580' },                               // darker muted pink
+    { tag: tags.meta, color: '#5a9cb8' },                                 // darker muted cyan
+    { tag: tags.constant(tags.variableName), color: '#7a65ad' },          // darker muted purple
+]);
+
+// Custom syntax highlighting using brand colors (dark mode - lighter muted)
+const brandHighlightStyleDark = HighlightStyle.define([
+    { tag: tags.keyword, color: '#e8bcd4', fontWeight: '500' },          // lighter muted pink
+    { tag: tags.operator, color: '#c8bce8' },                             // lighter muted purple
+    { tag: tags.variableName, color: '#b8e5f2' },                         // lighter muted cyan
+    { tag: tags.string, color: '#b8e5f2' },                               // lighter muted cyan
+    { tag: tags.number, color: '#c8bce8' },                               // lighter muted purple
+    { tag: tags.bool, color: '#c8bce8' },                                 // lighter muted purple
+    { tag: tags.comment, color: '#888888', fontStyle: 'italic' },         // gray
+    { tag: tags.tagName, color: '#b8e5f2' },                              // lighter muted cyan
+    { tag: tags.attributeName, color: '#e8bcd4' },                        // lighter muted pink
+    { tag: tags.propertyName, color: '#b8e5f2' },                         // lighter muted cyan
+    { tag: tags.function(tags.variableName), color: '#b8e5f2', fontWeight: '500' }, // lighter muted cyan
+    { tag: tags.className, color: '#e8bcd4' },                            // lighter muted pink
+    { tag: tags.typeName, color: '#e8bcd4' },                             // lighter muted pink
+    { tag: tags.regexp, color: '#c8bce8' },                               // lighter muted purple
+    { tag: tags.escape, color: '#e8bcd4' },                               // lighter muted pink
+    { tag: tags.meta, color: '#b8e5f2' },                                 // lighter muted cyan
+    { tag: tags.constant(tags.variableName), color: '#c8bce8' },          // lighter muted purple
+]);
 
 // Language detection based on file extension
 const getLanguageExtension = (filename) => {
@@ -200,10 +243,14 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
 
 // Initialize CodeMirror editor
 const initCodeMirrorEditor = async (initialContent = '', filename = 'untitled') => {
+    // Use appropriate highlight style based on current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const highlightStyle = isDark ? brandHighlightStyleDark : brandHighlightStyle;
+
     const extensions = [
         lineNumbers(),
         EditorView.lineWrapping,
-        syntaxHighlighting(defaultHighlightStyle),
+        syntaxHighlighting(highlightStyle),
         keymap.of([
             { key: 'Mod-s', run: () => { saveFile(); return true; } },
             { key: 'Mod-Shift-o', run: () => { openFolder(); return true; } },
@@ -808,23 +855,102 @@ const toggleAutosave = (enabled) => {
     }
 };
 
+// Show inline filename input
+const showFilenameInput = () => {
+    return new Promise((resolve) => {
+        const breadcrumb = document.getElementById('breadcrumb');
+        breadcrumb.innerHTML = '';
+
+        // Rebuild path if exists
+        if (currentPath.length > 0) {
+            currentPath.forEach((segment, index) => {
+                const item = document.createElement('span');
+                item.className = 'breadcrumb-item';
+                item.textContent = segment.name;
+                breadcrumb.appendChild(item);
+            });
+        }
+
+        // Add input where filename would normally appear
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'breadcrumb-input';
+        input.placeholder = 'filename';
+        input.value = '';
+
+        const handleSubmit = () => {
+            const filename = input.value.trim();
+            // Validate filename
+            if (!filename) {
+                resolve(null);
+                return;
+            }
+            // Check for invalid characters
+            const invalidChars = /[\/\\:*?"<>|]/;
+            if (invalidChars.test(filename)) {
+                resolve(null);
+                return;
+            }
+            resolve(filename);
+        };
+
+        const handleCancel = () => {
+            resolve(null);
+        };
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSubmit();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                handleCancel();
+            }
+        });
+
+        input.addEventListener('blur', handleCancel);
+
+        breadcrumb.appendChild(input);
+        input.focus();
+    });
+};
+
 // New file
 const newFile = async () => {
-    if (editorView && editorView.state.doc.toString().length > 0) {
+    // Store current state in case we need to restore
+    const previousFileHandle = currentFileHandle;
+    const previousFilename = currentFilename;
+    const previousContent = getEditorContent();
+    const wasDirty = isDirty;
+
+    if (editorView && editorView.state.doc.toString().length > 0 && isDirty) {
         const confirm = window.confirm('Current file has unsaved changes. Create new file anyway?');
         if (!confirm) return;
     }
 
+    // Show inline input for filename
+    const filename = await showFilenameInput();
+
+    if (!filename) {
+        // User cancelled - restore previous state
+        currentFileHandle = previousFileHandle;
+        currentFilename = previousFilename;
+        isDirty = wasDirty;
+        updateBreadcrumb();
+        return;
+    }
+
+    // Create new file with the provided filename
     currentFileHandle = null;
-    currentFilename = 'untitled';
-    await initEditor('', 'untitled');
+    currentFilename = filename;
+    await initEditor('', filename);
 
     // Keep current directory context
     updateBreadcrumb();
 };
 
 // Dark mode toggle
-const toggleDarkMode = () => {
+const toggleDarkMode = async () => {
     const html = document.documentElement;
     const darkModeToggle = document.getElementById('dark-mode-toggle');
     const themeColorMeta = document.querySelector('meta[name="theme-color"]');
@@ -842,6 +968,12 @@ const toggleDarkMode = () => {
         darkModeToggle.title = 'Switch to light mode';
         themeColorMeta.setAttribute('content', '#ff2d96');
         localStorage.setItem('theme', 'dark');
+    }
+
+    // Reinitialize editor with new theme colors
+    if (editorView || isMarkdownEditorActive()) {
+        const currentContent = getEditorContent();
+        await initEditor(currentContent, currentFilename);
     }
 };
 
