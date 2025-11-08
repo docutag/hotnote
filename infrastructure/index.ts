@@ -15,7 +15,7 @@ const app = new digitalocean.App('hotnote-app', {
       {
         name: 'web',
         instanceCount: 1,
-        instanceSizeSlug: 'professional-xs', // Smallest high CPU AMD instance
+        instanceSizeSlug: 'basic-xxs', // $5 a month
         image: {
           registryType: 'GHCR',
           registry: imageRepo.toLowerCase(),
