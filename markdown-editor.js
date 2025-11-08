@@ -82,3 +82,20 @@ export const setMarkdownContent = (content) => {
 export const isMarkdownEditorActive = () => {
     return milkdownEditor !== null;
 };
+
+// Focus the markdown editor
+export const focusMarkdownEditor = () => {
+    if (!milkdownEditor) {
+        return;
+    }
+
+    try {
+        // Find the ProseMirror editor element and focus it
+        const editorElement = document.querySelector('.milkdown .ProseMirror');
+        if (editorElement) {
+            editorElement.focus();
+        }
+    } catch (error) {
+        console.error('Error focusing markdown editor:', error);
+    }
+};

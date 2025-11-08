@@ -1,4 +1,4 @@
-# hotNote
+# hotnote
 
 A lightweight, minimalistic code editor and note-taking app with local filesystem access.
 
@@ -64,7 +64,7 @@ For the best experience, use Chrome or Edge.
 
 ### Web Application
 
-Deploy hotNote to any static hosting service:
+Deploy hotnote to any static hosting service:
 
 1. Build the application:
    ```bash
@@ -143,7 +143,7 @@ See [tests/README.md](tests/README.md) for detailed testing documentation.
 
 ### First Launch
 
-On first load, hotNote will show a welcome prompt:
+On first load, hotnote will show a welcome prompt:
 - Click **Open Folder** to browse and navigate through a folder structure
 
 ### Opening Folders
@@ -166,7 +166,7 @@ When browsing a folder:
 
 ### Unsaved Changes
 
-hotNote intelligently manages unsaved changes:
+hotnote intelligently manages unsaved changes:
 - Files with unsaved changes show a **dot indicator (•)** next to their name
 - The dot appears in both the breadcrumb and the file list
 - When you navigate away from a file with unsaved changes, they're stored in browser storage
@@ -196,11 +196,11 @@ The file is immediately:
 - **Autosave enabled** automatically for the new file
 - **Added to the file picker** if in a directory context
 
-hotNote will warn you if you have unsaved changes in the current file before creating a new one.
+hotnote will warn you if you have unsaved changes in the current file before creating a new one.
 
 ### Rich Markdown Editing
 
-When you open a `.md` file, hotNote automatically enables the rich WYSIWYG editor:
+When you open a `.md` file, hotnote automatically enables the rich WYSIWYG editor:
 
 - **WYSIWYG Experience**: Type naturally and see formatted text in real-time
   - Type `# ` for H1, `## ` for H2, etc.
@@ -220,17 +220,17 @@ The rich editor preserves your markdown formatting while providing a clean writi
 
 ## PWA Installation
 
-To install hotNote as a Progressive Web App:
+To install hotnote as a Progressive Web App:
 
-1. Open hotNote in Chrome or Edge
+1. Open hotnote in Chrome or Edge
 2. Click the install icon in the address bar
 3. Follow the prompts to install
 
-Once installed, hotNote will work offline and can be launched from your app launcher.
+Once installed, hotnote will work offline and can be launched from your app launcher.
 
 ## Color Scheme
 
-hotNote features both **light** and **dark** themes with a minimalistic color scheme and washed-out colors for a distraction-free writing and coding experience. Click the sun/moon button in the navbar to toggle between themes.
+hotnote features both **light** and **dark** themes with a minimalistic color scheme and washed-out colors for a distraction-free writing and coding experience. Click the sun/moon button in the navbar to toggle between themes.
 
 ### Light Theme
 
@@ -311,7 +311,7 @@ To use a different theme, modify these variables and update the syntax highlight
 
 ### Architecture
 
-hotNote is a browser-based application that uses the File System Access API for local file operations:
+hotnote is a browser-based application that uses the File System Access API for local file operations:
 
 **File System Adapter (`FileSystemAdapter` in app.js)**
 - Uses browser's native File System Access API

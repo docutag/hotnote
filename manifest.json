@@ -1,6 +1,6 @@
 {
-  "name": "hotNote",
-  "short_name": "hotNote",
+  "name": "hotnote",
+  "short_name": "hotnote",
   "description": "A lightweight, minimalistic code editor and note-taking app",
   "start_url": "/",
   "display": "standalone",

@@ -1,4 +1,4 @@
-// Core functionality for hotNote - exported for testing
+// Core functionality for hotnote - exported for testing
 
 // Constants
 export const TEMP_STORAGE_PREFIX = 'hotnote_temp_';

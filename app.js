@@ -24,7 +24,8 @@ import {
     initMarkdownEditor,
     destroyMarkdownEditor,
     getMarkdownContent,
-    isMarkdownEditorActive
+    isMarkdownEditorActive,
+    focusMarkdownEditor
 } from './markdown-editor.js';
 
 // File System Adapter - Browser File System Access API
@@ -403,20 +404,52 @@ const updateBreadcrumb = () => {
         }
         breadcrumb.appendChild(item);
     } else {
-        // Show full path
-        currentPath.forEach((segment, index) => {
-            const item = document.createElement('span');
-            item.className = 'breadcrumb-item';
-            item.textContent = segment.name;
-            item.dataset.index = index;
+        // Show path with abbreviation for long paths
+        const MAX_VISIBLE_ITEMS = 7; // Maximum items to show before abbreviating
+        const ITEMS_TO_SHOW_AT_END = 5; // How many items to show at the end after ellipsis
 
-            // Make all folder items clickable (even the last one)
-            item.addEventListener('click', () => navigateToPathIndex(index));
+        if (currentPath.length > MAX_VISIBLE_ITEMS) {
+            // Show first item
+            const firstItem = document.createElement('span');
+            firstItem.className = 'breadcrumb-item';
+            firstItem.textContent = currentPath[0].name;
+            firstItem.dataset.index = 0;
+            firstItem.addEventListener('click', () => navigateToPathIndex(0));
+            breadcrumb.appendChild(firstItem);
 
-            breadcrumb.appendChild(item);
-        });
+            // Show ellipsis
+            const ellipsis = document.createElement('span');
+            ellipsis.className = 'breadcrumb-item breadcrumb-ellipsis';
+            ellipsis.textContent = '...';
+            breadcrumb.appendChild(ellipsis);
 
-        // Add current file if opened
+            // Show last N items
+            const startIndex = currentPath.length - ITEMS_TO_SHOW_AT_END;
+            for (let i = startIndex; i < currentPath.length; i++) {
+                const segment = currentPath[i];
+                const item = document.createElement('span');
+                item.className = 'breadcrumb-item';
+                item.textContent = segment.name;
+                item.dataset.index = i;
+                item.addEventListener('click', () => navigateToPathIndex(i));
+                breadcrumb.appendChild(item);
+            }
+        } else {
+            // Show full path
+            currentPath.forEach((segment, index) => {
+                const item = document.createElement('span');
+                item.className = 'breadcrumb-item';
+                item.textContent = segment.name;
+                item.dataset.index = index;
+
+                // Make all folder items clickable (even the last one)
+                item.addEventListener('click', () => navigateToPathIndex(index));
+
+                breadcrumb.appendChild(item);
+            });
+        }
+
+        // Add current file if opened, or placeholder if no file
         if (currentFileHandle) {
             const fileItem = document.createElement('span');
             fileItem.className = 'breadcrumb-item';
@@ -425,12 +458,18 @@ const updateBreadcrumb = () => {
             }
             fileItem.textContent = currentFilename;
             breadcrumb.appendChild(fileItem);
+        } else {
+            // Show placeholder when folder is open but no file selected
+            const placeholder = document.createElement('span');
+            placeholder.className = 'breadcrumb-item breadcrumb-placeholder';
+            placeholder.textContent = 'filename (/ for search)';
+            breadcrumb.appendChild(placeholder);
         }
     }
 
     document.title = currentPath.length > 0
-        ? `${currentPath.map(p => p.name).join('/')}${currentFileHandle ? '/' + currentFilename : ''}${isDirty ? ' •' : ''} - hotNote`
-        : `${currentFilename}${isDirty ? ' •' : ''} - hotNote`;
+        ? `${currentPath.map(p => p.name).join('/')}${currentFileHandle ? '/' + currentFilename : ''}${isDirty ? ' •' : ''} - hotnote`
+        : `${currentFilename}${isDirty ? ' •' : ''} - hotnote`;
 };
 
 // Update rich toggle button visibility and state
@@ -749,6 +788,18 @@ const showFilePicker = async (dirHandle) => {
         item.appendChild(icon);
         item.appendChild(name);
 
+        // Add delete button for files only
+        if (entry.kind === 'file') {
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'file-item-delete';
+            deleteBtn.textContent = 'rm';
+            deleteBtn.addEventListener('click', async (e) => {
+                e.stopPropagation(); // Prevent opening the file
+                await deleteFile(entry);
+            });
+            item.appendChild(deleteBtn);
+        }
+
         item.addEventListener('click', async () => {
             if (entry.kind === 'directory') {
                 await navigateToDirectory(entry);
@@ -764,6 +815,41 @@ const showFilePicker = async (dirHandle) => {
 // Hide file picker
 window.hideFilePicker = () => {
     document.getElementById('file-picker').classList.add('hidden');
+};
+
+// Delete a file
+const deleteFile = async (fileHandle) => {
+    const confirmDelete = window.confirm(`Are you sure you want to delete "${fileHandle.name}"? This action cannot be undone.`);
+
+    if (!confirmDelete) {
+        return;
+    }
+
+    try {
+        // Remove the file from the directory
+        await currentDirHandle.removeEntry(fileHandle.name);
+
+        // If the deleted file is currently open, close it
+        if (currentFileHandle && currentFileHandle.name === fileHandle.name) {
+            currentFileHandle = null;
+            currentFilename = '';
+            isDirty = false;
+            await initEditor('', 'untitled');
+            updateBreadcrumb();
+        }
+
+        // Clear temp changes for this file
+        const pathParts = currentPath.map(p => p.name);
+        pathParts.push(fileHandle.name);
+        const filePathKey = pathParts.join('/');
+        clearTempChanges(filePathKey);
+
+        // Refresh the file picker
+        await showFilePicker(currentDirHandle);
+    } catch (err) {
+        console.error('Error deleting file:', err);
+        alert('Error deleting file: ' + err.message);
+    }
 };
 
 // Navigate to a subdirectory
@@ -930,8 +1016,138 @@ const toggleAutosave = (enabled) => {
     }
 };
 
-// Show inline filename input
-const showFilenameInput = () => {
+// Debounce utility
+const debounce = (func, wait) => {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+};
+
+// Fuzzy match helper - handles case-insensitive, substring, and space-as-wildcard matching
+const fuzzyMatch = (text, query) => {
+    if (!query) return true;
+
+    const textLower = text.toLowerCase();
+    const queryLower = query.toLowerCase();
+
+    // Normalize: replace spaces in query with a regex pattern that matches '', '-', or '_'
+    const queryPattern = queryLower.split(' ').map(part =>
+        part.split('').map(char => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('')
+    ).join('[\\s\\-_]*');
+
+    const regex = new RegExp(queryPattern);
+    return regex.test(textLower);
+};
+
+// Calculate relevance score for search results
+const calculateRelevance = (filename, query, depth = 0) => {
+    if (!query) return 1000;
+
+    const filenameLower = filename.toLowerCase();
+    const queryLower = query.toLowerCase();
+
+    // Exact match (highest priority)
+    if (filenameLower === queryLower) {
+        return 1000 - depth;
+    }
+
+    // Prefix match
+    if (filenameLower.startsWith(queryLower)) {
+        return 500 - depth;
+    }
+
+    // Substring match
+    if (filenameLower.includes(queryLower)) {
+        return 100 - depth;
+    }
+
+    // Fuzzy match (lowest priority)
+    return 10 - depth;
+};
+
+// Recursive search through directories
+const recursiveSearchFiles = async (dirHandle, query, maxDepth = 10, maxResults = 100) => {
+    const results = [];
+    const visited = new Set(); // Prevent infinite loops
+
+    const traverse = async (currentDir, currentPath = '', depth = 0) => {
+        // Stop if we've hit depth limit or result limit
+        if (depth > maxDepth || results.length >= maxResults) {
+            return;
+        }
+
+        try {
+            const entries = await FileSystemAdapter.listDirectory(currentDir);
+
+            for (const entry of entries) {
+                // Stop if we've reached result limit
+                if (results.length >= maxResults) {
+                    return;
+                }
+
+                // Skip hidden files and folders (starting with .)
+                if (entry.name.startsWith('.')) {
+                    continue;
+                }
+
+                const entryPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+
+                // Check if we've already visited this entry (avoid cycles)
+                const entryKey = `${depth}:${entryPath}`;
+                if (visited.has(entryKey)) {
+                    continue;
+                }
+                visited.add(entryKey);
+
+                // Check if entry matches query
+                if (fuzzyMatch(entry.name, query)) {
+                    const relevance = calculateRelevance(entry.name, query, depth);
+                    results.push({
+                        name: entry.name,
+                        path: currentPath,
+                        fullPath: entryPath,
+                        kind: entry.kind,
+                        handle: entry,
+                        depth: depth,
+                        relevance: relevance
+                    });
+                }
+
+                // Recursively search subdirectories
+                if (entry.kind === 'directory') {
+                    await traverse(entry, entryPath, depth + 1);
+                }
+            }
+        } catch (err) {
+            // Skip directories we can't access
+            console.warn(`Cannot access directory: ${currentPath}`, err);
+        }
+    };
+
+    await traverse(dirHandle);
+
+    // Sort by relevance (highest first), then by path length (shorter first), then alphabetically
+    results.sort((a, b) => {
+        if (b.relevance !== a.relevance) {
+            return b.relevance - a.relevance;
+        }
+        if (a.depth !== b.depth) {
+            return a.depth - b.depth;
+        }
+        return a.fullPath.localeCompare(b.fullPath);
+    });
+
+    return results;
+};
+
+// Show inline filename input with autocomplete
+const showFilenameInput = async (existingFiles = [], initialValue = '') => {
     return new Promise((resolve) => {
         const breadcrumb = document.getElementById('breadcrumb');
         breadcrumb.innerHTML = '';
@@ -946,18 +1162,148 @@ const showFilenameInput = () => {
             });
         }
 
+        // Create autocomplete container
+        const autocompleteContainer = document.createElement('div');
+        autocompleteContainer.className = 'autocomplete-container';
+
         // Add input where filename would normally appear
         const input = document.createElement('input');
         input.type = 'text';
         input.className = 'breadcrumb-input';
-        input.placeholder = 'filename';
-        input.value = '';
+        input.placeholder = 'filename (/ for search)';
+        input.value = initialValue;
+        input.autocomplete = 'off';
 
+        // Create dropdown for autocomplete
+        const dropdown = document.createElement('div');
+        dropdown.className = 'autocomplete-dropdown';
+        dropdown.style.display = 'none';
+
+        let selectedIndex = -1;
+        let filteredFiles = [];
         let resolved = false;
+        let searchInProgress = false;
+        const header = document.querySelector('header');
+
+        const updateDropdownImpl = async () => {
+            const value = input.value.trim();
+            const isRecursiveMode = value.includes('/');
+            const searchQuery = isRecursiveMode ? value.replace('/', '').trim() : value;
+
+            if (!searchQuery) {
+                dropdown.style.display = 'none';
+                filteredFiles = [];
+                header.classList.remove('searching');
+                return;
+            }
+
+            // Prevent concurrent searches
+            if (searchInProgress) {
+                return;
+            }
+
+            try {
+                searchInProgress = true;
+
+                if (isRecursiveMode && currentDirHandle) {
+                    // Show loading animation for recursive search
+                    header.classList.add('searching');
+
+                    // Recursive search mode
+                    const results = await recursiveSearchFiles(currentDirHandle, searchQuery);
+                    filteredFiles = results;
+                } else {
+                    // Normal prefix mode (current directory only)
+                    filteredFiles = existingFiles
+                        .filter(file => file.toLowerCase().startsWith(searchQuery.toLowerCase()))
+                        .map(name => ({
+                            name: name,
+                            path: '',
+                            fullPath: name,
+                            kind: 'file',
+                            relevance: 1000
+                        }));
+                }
+
+                if (filteredFiles.length === 0) {
+                    dropdown.style.display = 'none';
+                    return;
+                }
+
+                // Build dropdown items with two-line format
+                dropdown.innerHTML = '';
+                filteredFiles.forEach((result, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'autocomplete-item';
+                    if (result.kind === 'directory') {
+                        item.classList.add('is-directory');
+                    }
+
+                    // Name line
+                    const nameDiv = document.createElement('div');
+                    nameDiv.className = 'autocomplete-item-name';
+                    const icon = result.kind === 'directory' ? '📁 ' : '📄 ';
+                    nameDiv.textContent = icon + result.name;
+
+                    // Path line (if not in current directory)
+                    if (result.path) {
+                        const pathDiv = document.createElement('div');
+                        pathDiv.className = 'autocomplete-item-path';
+                        pathDiv.textContent = result.path;
+                        item.appendChild(nameDiv);
+                        item.appendChild(pathDiv);
+                    } else {
+                        item.appendChild(nameDiv);
+                    }
+
+                    item.addEventListener('mousedown', (e) => {
+                        e.preventDefault(); // Prevent blur
+                        input.value = result.fullPath;
+                        dropdown.style.display = 'none';
+                        handleSubmit();
+                    });
+                    dropdown.appendChild(item);
+                });
+
+                // Position dropdown below input
+                const rect = input.getBoundingClientRect();
+                dropdown.style.left = rect.left + 'px';
+                dropdown.style.top = (rect.bottom + 4) + 'px';
+                dropdown.style.display = 'block';
+                selectedIndex = -1;
+            } finally {
+                searchInProgress = false;
+                // Remove loading animation
+                header.classList.remove('searching');
+            }
+        };
+
+        // Debounced version for recursive search
+        const debouncedUpdateDropdown = debounce(updateDropdownImpl, 300);
+
+        const updateDropdown = () => {
+            const isRecursiveMode = input.value.includes('/');
+            if (isRecursiveMode) {
+                debouncedUpdateDropdown();
+            } else {
+                updateDropdownImpl();
+            }
+        };
+
+        const selectItem = (index) => {
+            const items = dropdown.querySelectorAll('.autocomplete-item');
+            items.forEach((item, i) => {
+                item.classList.toggle('selected', i === index);
+            });
+        };
 
         const handleSubmit = () => {
             if (resolved) return;
             resolved = true;
+
+            // Clean up dropdown and loading animation
+            dropdown.remove();
+            header.classList.remove('searching');
 
             const filename = input.value.trim();
             // Validate filename
@@ -965,10 +1311,10 @@ const showFilenameInput = () => {
                 resolve(null);
                 return;
             }
-            // Check for invalid characters
-            const invalidChars = /[\/\\:*?"<>|]/;
+            // Check for invalid characters (allow / for paths)
+            const invalidChars = /[\\:*?"<>|]/;
             if (invalidChars.test(filename)) {
-                alert('Invalid filename. Please avoid using / \\ : * ? " < > |');
+                alert('Invalid filename. Please avoid using \\ : * ? " < > |');
                 resolve(null);
                 return;
             }
@@ -978,24 +1324,256 @@ const showFilenameInput = () => {
         const handleCancel = () => {
             if (resolved) return;
             resolved = true;
+
+            // Clean up dropdown and loading animation
+            dropdown.remove();
+            header.classList.remove('searching');
+
             resolve(null);
         };
 
+        input.addEventListener('input', updateDropdown);
+
         input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                handleSubmit();
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                handleCancel();
+            if (dropdown.style.display === 'block' && filteredFiles.length > 0) {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    selectedIndex = Math.min(selectedIndex + 1, filteredFiles.length - 1);
+                    selectItem(selectedIndex);
+                    // Scroll into view
+                    const items = dropdown.querySelectorAll('.autocomplete-item');
+                    if (items[selectedIndex]) {
+                        items[selectedIndex].scrollIntoView({ block: 'nearest' });
+                    }
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    selectedIndex = Math.max(selectedIndex - 1, -1);
+                    selectItem(selectedIndex);
+                    // Scroll into view
+                    const items = dropdown.querySelectorAll('.autocomplete-item');
+                    if (items[selectedIndex]) {
+                        items[selectedIndex].scrollIntoView({ block: 'nearest' });
+                    }
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (selectedIndex >= 0) {
+                        input.value = filteredFiles[selectedIndex].fullPath;
+                        dropdown.style.display = 'none';
+                    }
+                    handleSubmit();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    if (dropdown.style.display === 'block') {
+                        dropdown.style.display = 'none';
+                        selectedIndex = -1;
+                    } else {
+                        handleCancel();
+                    }
+                }
+            } else {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSubmit();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    handleCancel();
+                }
             }
         });
 
-        input.addEventListener('blur', handleCancel);
+        input.addEventListener('blur', () => {
+            // Delay to allow click on dropdown
+            setTimeout(() => {
+                dropdown.style.display = 'none';
+                handleCancel();
+            }, 200);
+        });
 
-        breadcrumb.appendChild(input);
+        autocompleteContainer.appendChild(input);
+        breadcrumb.appendChild(autocompleteContainer);
+        // Append dropdown to body for fixed positioning
+        document.body.appendChild(dropdown);
         input.focus();
+
+        // Trigger autocomplete if there's an initial value
+        if (initialValue) {
+            updateDropdown();
+        }
     });
+};
+
+// Quick file creation - triggered by typing
+const quickFileCreate = async (initialChar = '') => {
+    // Only trigger if we have a directory context
+    if (!currentDirHandle) {
+        return;
+    }
+
+    // Get existing files in current directory for autocomplete
+    let existingFiles = [];
+    try {
+        const entries = await FileSystemAdapter.listDirectory(currentDirHandle);
+        existingFiles = entries
+            .filter(entry => entry.kind === 'file')
+            .map(entry => entry.name);
+    } catch (err) {
+        console.error('Error listing directory:', err);
+    }
+
+    // Show inline input for filename with initial character
+    const filename = await showFilenameInput(existingFiles, initialChar);
+
+    if (!filename) {
+        // User cancelled - restore breadcrumb
+        updateBreadcrumb();
+        return;
+    }
+
+    // Continue with newFile logic
+    await createOrOpenFile(filename);
+};
+
+// Helper to create or open a file
+const createOrOpenFile = async (filePathOrName) => {
+    const previousFileHandle = currentFileHandle;
+    const previousFilename = currentFilename;
+    const previousDirHandle = currentDirHandle;
+    const previousPath = [...currentPath];
+    const wasDirty = isDirty;
+
+    try {
+        let fileHandle;
+        let fileExists = false;
+        let actualFilename = filePathOrName;
+
+        // Check if we have a path (contains /)
+        if (filePathOrName.includes('/')) {
+            const parts = filePathOrName.split('/');
+            actualFilename = parts.pop(); // Last part is the filename
+            const directories = parts.filter(p => p); // Remove empty strings
+
+            // Navigate through the directory path
+            let targetDirHandle = currentDirHandle;
+            const newPath = [...currentPath];
+
+            for (const dirName of directories) {
+                try {
+                    const dirHandle = await targetDirHandle.getDirectoryHandle(dirName, { create: false });
+                    targetDirHandle = dirHandle;
+                    newPath.push({ name: dirName, handle: dirHandle });
+                } catch (err) {
+                    console.error(`Directory not found: ${dirName}`, err);
+                    alert(`Directory not found: ${dirName}`);
+                    return;
+                }
+            }
+
+            // Update current context to the target directory
+            currentDirHandle = targetDirHandle;
+            currentPath = newPath;
+        }
+
+        // Check if the target is a directory or file
+        if (currentDirHandle) {
+            // First try to see if it's a directory
+            let isDirectory = false;
+            try {
+                const dirHandle = await currentDirHandle.getDirectoryHandle(actualFilename, { create: false });
+                isDirectory = true;
+
+                // It's a directory - navigate to it
+                currentDirHandle = dirHandle;
+                currentPath.push({ name: actualFilename, handle: dirHandle });
+
+                // Close current file
+                currentFileHandle = null;
+                currentFilename = '';
+                await initEditor('', 'untitled');
+
+                updateBreadcrumb();
+                addToHistory();
+                await showFilePicker(dirHandle);
+                return;
+            } catch (dirErr) {
+                // Not a directory, try as file
+                try {
+                    fileHandle = await currentDirHandle.getFileHandle(actualFilename, { create: false });
+                    fileExists = true;
+                } catch (fileErr) {
+                    // File doesn't exist, create it
+                    fileHandle = await currentDirHandle.getFileHandle(actualFilename, { create: true });
+                }
+            }
+        } else {
+            fileHandle = await FileSystemAdapter.saveFilePicker(actualFilename);
+            if (!fileHandle) {
+                currentFileHandle = previousFileHandle;
+                currentFilename = previousFilename;
+                currentDirHandle = previousDirHandle;
+                currentPath = previousPath;
+                isDirty = wasDirty;
+                updateBreadcrumb();
+                return;
+            }
+        }
+
+        // Set as current file
+        currentFileHandle = fileHandle;
+        currentFilename = actualFilename;
+
+        // Set rich mode for markdown files
+        if (isMarkdownFile(actualFilename)) {
+            isRichMode = true;
+        } else {
+            isRichMode = false;
+        }
+
+        // If file exists, open it instead of creating new
+        if (fileExists) {
+            const content = await FileSystemAdapter.readFile(fileHandle);
+            await initEditor(content, actualFilename);
+            isDirty = false;
+            originalContent = content;
+        } else {
+            await FileSystemAdapter.writeFile(fileHandle, '');
+            await initEditor('', actualFilename);
+            isDirty = false;
+            originalContent = '';
+        }
+
+        updateBreadcrumb();
+
+        // Enable autosave for the file
+        if (!autosaveEnabled) {
+            autosaveEnabled = true;
+            document.getElementById('autosave-checkbox').checked = true;
+            startAutosave();
+        }
+
+        addToHistory();
+        hideFilePicker();
+
+        // Focus the editor after DOM updates complete
+        setTimeout(() => {
+            if (isMarkdownEditorActive()) {
+                focusMarkdownEditor();
+            } else if (editorView) {
+                editorView.focus();
+            }
+        }, 100);
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            console.error('Error creating/opening file:', err);
+            alert('Error: ' + err.message);
+        }
+        // Restore previous state
+        currentFileHandle = previousFileHandle;
+        currentFilename = previousFilename;
+        currentDirHandle = previousDirHandle;
+        currentPath = previousPath;
+        isDirty = wasDirty;
+        updateBreadcrumb();
+    }
 };
 
 // New file
@@ -1016,8 +1594,21 @@ const newFile = async () => {
         if (!confirm) return;
     }
 
-    // Show inline input for filename
-    const filename = await showFilenameInput();
+    // Get existing files in current directory for autocomplete
+    let existingFiles = [];
+    if (currentDirHandle) {
+        try {
+            const entries = await FileSystemAdapter.listDirectory(currentDirHandle);
+            existingFiles = entries
+                .filter(entry => entry.kind === 'file')
+                .map(entry => entry.name);
+        } catch (err) {
+            console.error('Error listing directory:', err);
+        }
+    }
+
+    // Show inline input for filename with autocomplete
+    const filename = await showFilenameInput(existingFiles);
 
     if (!filename) {
         // User cancelled - restore previous state
@@ -1028,80 +1619,8 @@ const newFile = async () => {
         return;
     }
 
-    try {
-        let fileHandle;
-
-        // If we're in a directory context, create the file there
-        if (currentDirHandle) {
-            // Create file in current directory
-            fileHandle = await currentDirHandle.getFileHandle(filename, { create: true });
-        } else {
-            // No directory context, use save file picker
-            fileHandle = await FileSystemAdapter.saveFilePicker(filename);
-            if (!fileHandle) {
-                // User cancelled
-                currentFileHandle = previousFileHandle;
-                currentFilename = previousFilename;
-                isDirty = wasDirty;
-                updateBreadcrumb();
-                return;
-            }
-        }
-
-        // Write empty content to create/touch the file
-        await FileSystemAdapter.writeFile(fileHandle, '');
-
-        // Set as current file
-        currentFileHandle = fileHandle;
-        currentFilename = filename;
-
-        // Set rich mode for markdown files
-        if (isMarkdownFile(filename)) {
-            isRichMode = true;
-        } else {
-            isRichMode = false;
-        }
-
-        // Initialize editor with empty content
-        await initEditor('', filename);
-
-        // Mark as not dirty since we just created it empty
-        isDirty = false;
-        originalContent = '';
-
-        // Update breadcrumb
-        updateBreadcrumb();
-
-        // Enable autosave for the new file
-        if (!autosaveEnabled) {
-            autosaveEnabled = true;
-            document.getElementById('autosave-checkbox').checked = true;
-            startAutosave();
-        }
-
-        // Add to navigation history
-        addToHistory();
-
-        // Refresh file picker if in directory context
-        if (currentDirHandle) {
-            await showFilePicker(currentDirHandle);
-        }
-
-        // Focus the editor
-        if (editorView) {
-            editorView.focus();
-        }
-    } catch (err) {
-        if (err.name !== 'AbortError') {
-            console.error('Error creating new file:', err);
-            alert('Error creating new file: ' + err.message);
-        }
-        // Restore previous state on error
-        currentFileHandle = previousFileHandle;
-        currentFilename = previousFilename;
-        isDirty = wasDirty;
-        updateBreadcrumb();
-    }
+    // Use helper to create or open the file
+    await createOrOpenFile(filename);
 };
 
 // Dark mode toggle
@@ -1157,6 +1676,39 @@ document.getElementById('autosave-checkbox').addEventListener('change', (e) => {
 document.getElementById('rich-toggle-btn').addEventListener('click', toggleRichMode);
 document.getElementById('dark-mode-toggle').addEventListener('click', toggleDarkMode);
 
+// Global keyboard listener for quick file creation/search
+document.addEventListener('keydown', async (e) => {
+    // Trigger on alphanumeric keys or forward slash
+    if (!/^[a-zA-Z0-9\/]$/.test(e.key)) {
+        return;
+    }
+
+    // Don't trigger if user is typing in an input field or the editor
+    const activeElement = document.activeElement;
+    if (activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.classList.contains('cm-content') ||
+        activeElement.classList.contains('ProseMirror')
+    )) {
+        return;
+    }
+
+    // Don't trigger if there's no directory context
+    if (!currentDirHandle) {
+        return;
+    }
+
+    // Don't trigger if autocomplete is already showing
+    if (document.querySelector('.breadcrumb-input')) {
+        return;
+    }
+
+    // Trigger quick file creation/search with the typed character
+    e.preventDefault();
+    await quickFileCreate(e.key);
+});
+
 // Initialize dark mode on load
 initDarkMode();
 
@@ -1174,7 +1726,7 @@ const showWelcomePrompt = () => {
 
     picker.innerHTML = `
         <div class="file-picker-header">
-            <span class="file-picker-path">Welcome to hotNote</span>
+            <span class="file-picker-path">Welcome to hotnote</span>
             <button class="file-picker-close" onclick="hideFilePicker()">close</button>
         </div>
         <div class="welcome-content">
@@ -1190,6 +1742,17 @@ const showWelcomePrompt = () => {
         openFolder();
     });
 };
+
+// Register service worker for offline support
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js')
+        .then((registration) => {
+            console.log('Service Worker registered with scope:', registration.scope);
+        })
+        .catch((error) => {
+            console.log('Service Worker registration failed:', error);
+        });
+}
 
 // Initialize app
 (async () => {
