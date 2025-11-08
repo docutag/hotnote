@@ -3,30 +3,32 @@ import * as digitalocean from '@pulumi/digitalocean';
 
 // Get configuration
 const config = new pulumi.Config();
-const githubRepo = process.env.GITHUB_REPOSITORY || 'anthropics/hotnote';
-const branch = config.get('branch') || 'main';
+const imageTag = process.env.IMAGE_TAG || 'latest';
 
-// Create a DigitalOcean App Platform app for static site
+// Use existing DigitalOcean Container Registry (registry.digitalocean.com/hotnote)
+const registry = 'hotnote';
+const repository = 'hotnote';
+
+// Create a DigitalOcean App Platform app
 const app = new digitalocean.App('hotnote-app', {
   spec: {
     name: 'hotnote',
     region: 'fra', // Frankfurt
-    staticSites: [
+    services: [
       {
         name: 'hotnote-web',
-        github: {
-          repo: githubRepo,
-          branch: branch,
-          deployOnPush: true,
+        instanceCount: 1,
+        instanceSizeSlug: 'basic-xxs',
+        image: {
+          registryType: 'DOCR',
+          registry: registry,
+          repository: repository,
+          tag: imageTag,
         },
-        buildCommand: 'npm ci && npm run build',
-        outputDir: '/dist',
-        envs: [
-          {
-            key: 'NODE_VERSION',
-            value: '20',
-          },
-        ],
+        httpPort: 80,
+        healthCheck: {
+          httpPath: '/',
+        },
       },
     ],
   },
