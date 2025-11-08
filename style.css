@@ -112,7 +112,7 @@ header {
   gap: 1rem;
   padding: 0.75rem 1.5rem;
   border-bottom: 2px solid transparent;
-  border-image: linear-gradient(90deg, var(--brand-pink), var(--brand-purple), var(--brand-cyan)) 1;
+  border-image: linear-gradient(90deg, var(--brand-pink) 0%, var(--brand-purple) 50%, var(--brand-cyan) 100%) 1;
   background: var(--bg-secondary);
   box-shadow: 0 2px 8px rgb(0 0 0 / 5%);
   overflow: visible;
@@ -128,14 +128,16 @@ header::after {
   height: 2px;
   background: linear-gradient(
     90deg,
-    var(--brand-pink),
-    var(--brand-purple),
-    var(--brand-cyan),
-    var(--brand-pink),
-    var(--brand-purple),
-    var(--brand-cyan)
+    var(--brand-pink) 0%,
+    var(--brand-purple) 16.67%,
+    var(--brand-cyan) 33.33%,
+    #00d4ff 41.67%,
+    #9c4dff 58.33%,
+    var(--brand-pink) 75%,
+    var(--brand-purple) 91.67%,
+    var(--brand-cyan) 100%
   );
-  background-size: 200% 100%;
+  background-size: 300% 100%;
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -173,7 +175,7 @@ header:has(.app-logo.compact) {
   }
 
   100% {
-    background-position: 200% 0%;
+    background-position: 300% 0%;
   }
 }
 
