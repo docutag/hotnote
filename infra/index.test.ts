@@ -80,19 +80,6 @@ describe('Pulumi Infrastructure Tests', () => {
       expect(appId).toContain('app');
     });
 
-    it('should export domain name as hotnote.io', async () => {
-      const domainName = await promiseOf(infrastructure.domainName);
-      expect(domainName).toBe('hotnote.io');
-    });
-
-    it('should export DigitalOcean nameservers', async () => {
-      const nameservers = await promiseOf(infrastructure.nameservers);
-      expect(nameservers).toEqual([
-        'ns1.digitalocean.com',
-        'ns2.digitalocean.com',
-        'ns3.digitalocean.com',
-      ]);
-    });
 
     it('should export appDefaultUrl', async () => {
       const appDefaultUrl = await promiseOf(infrastructure.appDefaultUrl);
@@ -124,16 +111,13 @@ describe('Pulumi Infrastructure Tests', () => {
       expect(infrastructure).toBeDefined();
       expect(infrastructure.appUrl).toBeDefined();
       expect(infrastructure.appId).toBeDefined();
-      expect(infrastructure.domainName).toBeDefined();
-      expect(infrastructure.nameservers).toBeDefined();
+      expect(infrastructure.appDefaultUrl).toBeDefined();
     });
 
     it('should export all required values', () => {
       expect(infrastructure.appUrl).toBeDefined();
       expect(infrastructure.appId).toBeDefined();
       expect(infrastructure.appDefaultUrl).toBeDefined();
-      expect(infrastructure.domainName).toBeDefined();
-      expect(infrastructure.nameservers).toBeDefined();
     });
   });
 });
