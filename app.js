@@ -2735,14 +2735,16 @@ const toggleDarkMode = async () => {
   }
 };
 
-// Initialize dark mode from localStorage
+// Initialize dark mode from localStorage or system preferences
 const initDarkMode = () => {
   const savedTheme = localStorage.getItem('theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const shouldUseDark = savedTheme === 'dark' || (savedTheme === null && prefersDark);
   const darkModeToggle = document.getElementById('dark-mode-toggle');
   const icon = darkModeToggle.querySelector('.material-symbols-outlined');
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 
-  if (savedTheme === 'dark') {
+  if (shouldUseDark) {
     document.documentElement.setAttribute('data-theme', 'dark');
     icon.textContent = 'light_mode';
     darkModeToggle.title = 'Switch to light mode';
@@ -2754,6 +2756,71 @@ const initDarkMode = () => {
     document.body.classList.remove('preload');
   }, 100);
 };
+
+// Listen for system theme changes and apply them if user hasn't set a preference
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', async (e) => {
+  const savedTheme = localStorage.getItem('theme');
+  // Only apply system theme change if user hasn't explicitly set a preference
+  if (savedTheme === null) {
+    const isDark = e.matches;
+    const darkModeToggle = document.getElementById('dark-mode-toggle');
+    const icon = darkModeToggle.querySelector('.material-symbols-outlined');
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+
+    if (isDark) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      icon.textContent = 'light_mode';
+      darkModeToggle.title = 'Switch to light mode';
+      themeColorMeta.setAttribute('content', '#ff2d96');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      icon.textContent = 'dark_mode';
+      darkModeToggle.title = 'Switch to dark mode';
+      themeColorMeta.setAttribute('content', '#e91e8c');
+    }
+
+    // Re-initialize editor with new theme colors
+    if (editorView || editorManager) {
+      const currentContent = getEditorContent();
+
+      // Save editor state before destroying
+      let scrollTop = 0;
+      let scrollLeft = 0;
+      let currentMode = null;
+
+      if (editorView) {
+        const scroller = editorView.scrollDOM;
+        scrollTop = scroller.scrollTop;
+        scrollLeft = scroller.scrollLeft;
+      } else if (editorManager) {
+        scrollTop = editorManager.getScrollPosition();
+        currentMode = editorManager.getMode();
+      }
+
+      // Temporarily set isRestoringSession to preserve the mode
+      const wasRestoringSession = isRestoringSession;
+      if (currentMode) {
+        isRestoringSession = true;
+        localStorage.setItem(`mode_${currentFilename}`, currentMode);
+      }
+
+      await initEditor(currentContent, currentFilename);
+
+      // Restore previous session state
+      isRestoringSession = wasRestoringSession;
+
+      // Restore scroll position
+      setTimeout(() => {
+        if (editorView) {
+          editorView.scrollDOM.scrollTop = scrollTop;
+          editorView.scrollDOM.scrollLeft = scrollLeft;
+        } else if (editorManager) {
+          editorManager.setScrollPosition(scrollTop);
+        }
+      }, 0);
+    }
+  }
+});
 
 // Event listeners
 document.getElementById('new-btn').addEventListener('click', () => {

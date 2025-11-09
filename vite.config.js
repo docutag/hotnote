@@ -7,6 +7,9 @@ const packageJson = JSON.parse(readFileSync('./package.json', 'utf-8'));
 const version = packageJson.version;
 
 export default defineConfig({
+  server: {
+    port: 3011,
+  },
   define: {
     __APP_VERSION__: JSON.stringify(version),
   },

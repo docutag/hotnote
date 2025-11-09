@@ -20,7 +20,10 @@
     <script>
       // Apply saved theme before page renders to prevent flash
       const savedTheme = localStorage.getItem('theme');
-      if (savedTheme === 'dark') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const shouldUseDark = savedTheme === 'dark' || (savedTheme === null && prefersDark);
+
+      if (shouldUseDark) {
         document.documentElement.setAttribute('data-theme', 'dark');
         document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ff2d96');
       }

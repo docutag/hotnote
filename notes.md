@@ -20,23 +20,13 @@
 
 - the autosave text label should stay shown until a file is open, it should show itself on mouseover checkbox
 
-- enrich the file picker with info about the file (read only, size) make it discreet
-
-- when using the back arrow to go back to a doc, the charet position (and scroll) should be remembered and the caret should be activated
-
-- add a drag resize handle to the file picker list
-
-- adjust the preferences file so that any user preference or session information is stored under a unique user uid. This is because the \_session.HN (new name btw) file could be merged with other users, this is a breaking change
+  adjust the preferences file so that any user preference or session information is stored under a unique user uid. This is because the \_session.HN (new name btw) file could be merged with other users, this is a breaking change
 
 - cmd + s should save on mac (ctrl + s on windows) and whatever the linux shortcut is
 
 - swap the theme and code buttons on the navbar
 
-- the welcome screen and file picker should use material ui, the fonts should align with those used by the breadcrumbs system
-
 - we should periodically reload the file when the user isn't typing. the experience when having multiple tabs open with the same content should be improved somehow
-
-- the autocomplete window needs material ui icons and 'treatment' (follow guidelines on spacing etc)
 
 - autocomplete / search entries should be displayed least-deep first (with autocomplete or local matches on top)
 
