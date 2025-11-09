@@ -708,9 +708,7 @@ const navigateToPathIndex = async (index) => {
   currentDirHandle = currentPath[currentPath.length - 1].handle;
 
   // Don't close the current file - keep it open while showing picker
-
-  // Add to navigation history
-  addToHistory();
+  // Note: Don't add to history - breadcrumb navigation is just for browsing
 
   // Show file picker for this directory
   await showFilePicker(currentDirHandle);
@@ -722,11 +720,18 @@ const addToHistory = () => {
   // Remove any forward history when navigating to a new location
   navigationHistory = navigationHistory.slice(0, historyIndex + 1);
 
+  // Capture current editor state if we have a file open
+  let editorState = null;
+  if (currentFileHandle) {
+    editorState = focusManager._captureEditorState();
+  }
+
   navigationHistory.push({
     path: [...currentPath],
     dirHandle: currentDirHandle,
     fileHandle: currentFileHandle,
     filename: currentFilename,
+    editorState: editorState, // Store cursor and scroll position
   });
 
   historyIndex = navigationHistory.length - 1;
@@ -842,6 +847,15 @@ const goBack = async () => {
   updateLogoState();
   updateNavigationButtons();
 
+  // Restore editor state if available
+  if (state.editorState) {
+    // Use requestAnimationFrame to ensure editor is fully initialized
+    // eslint-disable-next-line no-undef
+    requestAnimationFrame(() => {
+      focusManager._restoreEditorState(state.editorState);
+    });
+  }
+
   // Update URL to match current state
   const urlPath = pathToUrlParam();
   const url = urlPath ? `?localdir=${urlPath}` : window.location.pathname;
@@ -911,6 +925,15 @@ const goForward = async () => {
   updateBreadcrumb();
   updateLogoState();
   updateNavigationButtons();
+
+  // Restore editor state if available
+  if (state.editorState) {
+    // Use requestAnimationFrame to ensure editor is fully initialized
+    // eslint-disable-next-line no-undef
+    requestAnimationFrame(() => {
+      focusManager._restoreEditorState(state.editorState);
+    });
+  }
 
   // Update URL to match current state
   const urlPath = pathToUrlParam();
@@ -1267,8 +1290,8 @@ const navigateToDirectory = async (dirHandle) => {
   currentDirHandle = dirHandle;
 
   // Don't close the current file - keep it open while showing picker
+  // Note: Don't add to history - folder navigation is just for browsing
 
-  addToHistory();
   await showFilePicker(dirHandle);
   updateBreadcrumb();
 };
@@ -2373,11 +2396,23 @@ document.getElementById('new-btn').addEventListener('click', () => {
   newFile();
 });
 document.getElementById('back-btn').addEventListener('click', () => {
-  focusManager.saveFocusState();
+  // Save current editor state to history before navigating
+  if (currentFileHandle && navigationHistory[historyIndex]) {
+    const editorState = focusManager._captureEditorState();
+    if (editorState) {
+      navigationHistory[historyIndex].editorState = editorState;
+    }
+  }
   goBack();
 });
 document.getElementById('forward-btn').addEventListener('click', () => {
-  focusManager.saveFocusState();
+  // Save current editor state to history before navigating
+  if (currentFileHandle && navigationHistory[historyIndex]) {
+    const editorState = focusManager._captureEditorState();
+    if (editorState) {
+      navigationHistory[historyIndex].editorState = editorState;
+    }
+  }
   goForward();
 });
 document.getElementById('folder-up-btn').addEventListener('click', () => {
