@@ -1151,7 +1151,9 @@ const openFolder = async () => {
 // Show file picker for a directory
 const showFilePicker = async (dirHandle) => {
   const picker = document.getElementById('file-picker');
+  const resizeHandle = document.getElementById('file-picker-resize-handle');
   picker.classList.remove('hidden');
+  resizeHandle.classList.remove('hidden');
 
   // Create file list
   picker.innerHTML = "<div class='file-list' id='file-list'></div>";
@@ -1263,6 +1265,7 @@ const showFilePicker = async (dirHandle) => {
 // Hide file picker
 window.hideFilePicker = () => {
   document.getElementById('file-picker').classList.add('hidden');
+  document.getElementById('file-picker-resize-handle').classList.add('hidden');
 
   // Restore focus to editor if a file is currently open
   if (currentFileHandle) {
@@ -1284,6 +1287,9 @@ document.addEventListener('click', (e) => {
   // Don't close if click was inside the picker
   if (picker.contains(e.target)) return;
 
+  // Don't close if click was on the resize handle
+  if (e.target.closest('#file-picker-resize-handle')) return;
+
   // Don't close if click was on breadcrumb (handled by stopPropagation)
   // Don't close if click was on navigation controls
   const clickedElement = e.target;
@@ -1298,6 +1304,65 @@ document.addEventListener('click', (e) => {
   // Close the picker for clicks outside
   hideFilePicker();
 });
+
+// Initialize file picker resize functionality
+const initFilePickerResize = () => {
+  const resizeHandle = document.getElementById('file-picker-resize-handle');
+  const filePicker = document.getElementById('file-picker');
+
+  // Load saved height from localStorage
+  const savedHeight = localStorage.getItem('filePickerHeight');
+  const initialHeight = savedHeight ? parseInt(savedHeight, 10) : 300;
+  document.documentElement.style.setProperty('--file-picker-height', `${initialHeight}px`);
+
+  let isDragging = false;
+  let startY = 0;
+  let startHeight = 0;
+
+  const onMouseDown = (e) => {
+    isDragging = true;
+    startY = e.clientY;
+    startHeight = filePicker.offsetHeight;
+
+    resizeHandle.classList.add('dragging');
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+
+    e.preventDefault();
+  };
+
+  const onMouseMove = (e) => {
+    if (!isDragging) return;
+
+    const deltaY = e.clientY - startY;
+    let newHeight = startHeight + deltaY;
+
+    // Apply constraints: min 100px, max 80vh
+    const minHeight = 100;
+    const maxHeight = window.innerHeight * 0.8;
+    newHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
+
+    // Update CSS custom property
+    document.documentElement.style.setProperty('--file-picker-height', `${newHeight}px`);
+
+    // Save to localStorage
+    localStorage.setItem('filePickerHeight', newHeight.toString());
+  };
+
+  const onMouseUp = () => {
+    if (!isDragging) return;
+
+    isDragging = false;
+    resizeHandle.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
+
+  // Attach event listeners
+  resizeHandle.addEventListener('mousedown', onMouseDown);
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup', onMouseUp);
+};
 
 // Global variable for trash handle
 let trashDirHandle = null;
@@ -3156,6 +3221,9 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   updateBreadcrumb();
   updateNavigationButtons();
   updateNewButtonState();
+
+  // Initialize file picker resize
+  initFilePickerResize();
 
   // Start autosave (enabled by default)
   if (autosaveEnabled) {

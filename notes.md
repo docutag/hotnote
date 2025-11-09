@@ -28,8 +28,6 @@
 
 - adjust the preferences file so that any user preference or session information is stored under a unique user uid. This is because the \_session.HN (new name btw) file could be merged with other users, this is a breaking change
 
-- new document button should be disabled until a folder (aka: workspace) is set
-
 - cmd + s should save on mac (ctrl + s on windows) and whatever the linux shortcut is
 
 - swap the theme and code buttons on the navbar
@@ -43,11 +41,5 @@
 - autocomplete / search entries should be displayed least-deep first (with autocomplete or local matches on top)
 
 - if there are autocomplete results in the search / autocomplete window, other search results should hold off for a second or two (we can still be gathering the results in the background, just not displaying them)
-
-- document viewer experience bug: https\://github.com/zombar/hotnote.io/pull/32/
-
-- link handling
-
-- <br />
 
 - split app.js file up into library functions
