@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.1](https://github.com/zombar/hotnote.io/compare/v1.11.0...v1.11.1) (2025-11-09)
+
+
+### Bug Fixes
+
+* file picker context bug ([#51](https://github.com/zombar/hotnote.io/issues/51)) ([177f549](https://github.com/zombar/hotnote.io/commit/177f549fc79ca1d62b7e3e4086befd6b29f5678f))
+* navbar context bug ([#49](https://github.com/zombar/hotnote.io/issues/49)) ([c3c6b68](https://github.com/zombar/hotnote.io/commit/c3c6b68c0f5117ffea6514dbc837f3fd72d46313))
+
 ## [1.11.0](https://github.com/zombar/hotnote.io/compare/v1.10.0...v1.11.0) (2025-11-09)
 
 
