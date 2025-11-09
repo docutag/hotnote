@@ -5,3 +5,5 @@ dist/
 .vite/
 coverage/
 .session_properties.HN
+playwright-report/
+test-results/
