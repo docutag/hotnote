@@ -1655,12 +1655,7 @@ button:disabled:hover {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgb(138 180 248 / 15%) 50%,
-    transparent 100%
-  );
+  background: linear-gradient(90deg, transparent 0%, rgb(138 180 248 / 15%) 50%, transparent 100%);
   background-size: 200% 100%;
   animation: sync-shimmer 1.5s ease-in-out infinite;
   pointer-events: none;
