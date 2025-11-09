@@ -167,6 +167,7 @@ let lastRestorationTime = 0; // Track when we last restored state to prevent pre
 // Navigation history
 let navigationHistory = [];
 let historyIndex = -1;
+let isPopStateNavigation = false; // Prevent duplicate history entries during browser back/forward
 
 // Autosave
 let autosaveEnabled = true;
@@ -717,6 +718,22 @@ const addToHistory = () => {
 
   historyIndex = navigationHistory.length - 1;
   updateNavigationButtons();
+
+  // Sync with browser history (unless we're navigating via popstate)
+  if (!isPopStateNavigation) {
+    const urlPath = pathToUrlParam();
+    const url = urlPath ? `?localdir=${encodeURIComponent(urlPath)}` : window.location.pathname;
+    const title = currentFilename || 'hotnote';
+
+    history.pushState(
+      {
+        historyIndex: historyIndex,
+        appHistory: true,
+      },
+      title,
+      url
+    );
+  }
 };
 
 // Update back/forward button states
@@ -724,6 +741,36 @@ const updateNavigationButtons = () => {
   document.getElementById('back-btn').disabled = historyIndex <= 0;
   document.getElementById('forward-btn').disabled = historyIndex >= navigationHistory.length - 1;
   document.getElementById('folder-up-btn').disabled = currentPath.length === 0;
+};
+
+// Convert current path and filename to URL parameter
+const pathToUrlParam = () => {
+  if (currentPath.length === 0) {
+    return '';
+  }
+
+  // Build path from currentPath array
+  const pathParts = currentPath.map((p) => p.name);
+  let fullPath = '/' + pathParts.join('/');
+
+  // Add filename if we have one
+  if (currentFilename) {
+    fullPath += '/' + currentFilename;
+  }
+
+  return fullPath;
+};
+
+// Parse URL parameter back to path segments
+// eslint-disable-next-line no-unused-vars
+const urlParamToPath = (param) => {
+  if (!param || param === '/') {
+    return [];
+  }
+
+  // Remove leading slash and split
+  const cleaned = param.startsWith('/') ? param.slice(1) : param;
+  return cleaned.split('/').filter((p) => p.length > 0);
 };
 
 // Navigate back
@@ -781,6 +828,19 @@ const goBack = async () => {
   updateBreadcrumb();
   updateLogoState();
   updateNavigationButtons();
+
+  // Update URL to match current state
+  const urlPath = pathToUrlParam();
+  const url = urlPath ? `?localdir=${encodeURIComponent(urlPath)}` : window.location.pathname;
+  const title = currentFilename || 'hotnote';
+  history.replaceState(
+    {
+      historyIndex: historyIndex,
+      appHistory: true,
+    },
+    title,
+    url
+  );
 };
 
 // Navigate forward
@@ -838,6 +898,19 @@ const goForward = async () => {
   updateBreadcrumb();
   updateLogoState();
   updateNavigationButtons();
+
+  // Update URL to match current state
+  const urlPath = pathToUrlParam();
+  const url = urlPath ? `?localdir=${encodeURIComponent(urlPath)}` : window.location.pathname;
+  const title = currentFilename || 'hotnote';
+  history.replaceState(
+    {
+      historyIndex: historyIndex,
+      appHistory: true,
+    },
+    title,
+    url
+  );
 };
 
 // Navigate up one folder
@@ -2306,6 +2379,37 @@ document.getElementById('rich-toggle-btn').addEventListener('click', () => {
 });
 document.getElementById('dark-mode-toggle').addEventListener('click', toggleDarkMode);
 
+// Browser back/forward button listener
+window.addEventListener('popstate', async (event) => {
+  // If there's no state or it's not from our app, let the browser handle it
+  if (!event.state || !event.state.appHistory) {
+    return;
+  }
+
+  const targetIndex = event.state.historyIndex;
+
+  // Set flag to prevent addToHistory from creating duplicate entries
+  isPopStateNavigation = true;
+
+  try {
+    // Navigate to the target index
+    if (targetIndex < historyIndex) {
+      // Going back
+      while (historyIndex > targetIndex && historyIndex > 0) {
+        await goBack();
+      }
+    } else if (targetIndex > historyIndex) {
+      // Going forward
+      while (historyIndex < targetIndex && historyIndex < navigationHistory.length - 1) {
+        await goForward();
+      }
+    }
+  } finally {
+    // Always reset the flag
+    isPopStateNavigation = false;
+  }
+});
+
 // Global keyboard listener for quick file creation/search
 document.addEventListener('keydown', async (e) => {
   // Trigger on alphanumeric keys, forward slash, or period
@@ -2461,6 +2565,18 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
     startAutosave();
     // Animate the autosave label to hide after initial load
     animateAutosaveLabel(true);
+  }
+
+  // Set initial history state
+  if (!history.state || !history.state.appHistory) {
+    history.replaceState(
+      {
+        historyIndex: historyIndex,
+        appHistory: true,
+      },
+      'hotnote',
+      window.location.href
+    );
   }
 
   // Check for saved folder and show appropriate prompt

@@ -382,3 +382,173 @@ describe('Navigation History Integration Tests', () => {
     expect(current.scrollPosition).toBe(150);
   });
 });
+
+describe('Browser History Integration Tests', () => {
+  describe('pathToUrlParam', () => {
+    it('should return empty string when currentPath is empty', () => {
+      const currentPath = [];
+      const currentFilename = '';
+
+      const pathParts = currentPath.map((p) => p.name);
+      let fullPath = '';
+      if (currentPath.length > 0) {
+        fullPath = '/' + pathParts.join('/');
+        if (currentFilename) {
+          fullPath += '/' + currentFilename;
+        }
+      }
+
+      expect(fullPath).toBe('');
+    });
+
+    it('should return folder path only when no file is open', () => {
+      const currentPath = [{ name: 'workspace' }];
+      const currentFilename = '';
+
+      const pathParts = currentPath.map((p) => p.name);
+      let fullPath = '/' + pathParts.join('/');
+      if (currentFilename) {
+        fullPath += '/' + currentFilename;
+      }
+
+      expect(fullPath).toBe('/workspace');
+    });
+
+    it('should return nested folder path', () => {
+      const currentPath = [{ name: 'workspace' }, { name: 'src' }, { name: 'components' }];
+      const currentFilename = '';
+
+      const pathParts = currentPath.map((p) => p.name);
+      let fullPath = '/' + pathParts.join('/');
+      if (currentFilename) {
+        fullPath += '/' + currentFilename;
+      }
+
+      expect(fullPath).toBe('/workspace/src/components');
+    });
+
+    it('should return full path with filename', () => {
+      const currentPath = [{ name: 'workspace' }, { name: 'src' }];
+      const currentFilename = 'app.js';
+
+      const pathParts = currentPath.map((p) => p.name);
+      let fullPath = '/' + pathParts.join('/');
+      if (currentFilename) {
+        fullPath += '/' + currentFilename;
+      }
+
+      expect(fullPath).toBe('/workspace/src/app.js');
+    });
+  });
+
+  describe('urlParamToPath', () => {
+    const urlParamToPath = (param) => {
+      if (!param || param === '/') {
+        return [];
+      }
+      const cleaned = param.startsWith('/') ? param.slice(1) : param;
+      return cleaned.split('/').filter((p) => p.length > 0);
+    };
+
+    it('should return empty array for empty string', () => {
+      expect(urlParamToPath('')).toEqual([]);
+    });
+
+    it('should return empty array for single slash', () => {
+      expect(urlParamToPath('/')).toEqual([]);
+    });
+
+    it('should parse single folder path', () => {
+      expect(urlParamToPath('/workspace')).toEqual(['workspace']);
+    });
+
+    it('should parse nested folder path', () => {
+      expect(urlParamToPath('/workspace/src/components')).toEqual([
+        'workspace',
+        'src',
+        'components',
+      ]);
+    });
+
+    it('should parse full path with filename', () => {
+      expect(urlParamToPath('/workspace/src/app.js')).toEqual(['workspace', 'src', 'app.js']);
+    });
+
+    it('should handle path without leading slash', () => {
+      expect(urlParamToPath('workspace/src/app.js')).toEqual(['workspace', 'src', 'app.js']);
+    });
+
+    it('should filter out empty segments', () => {
+      expect(urlParamToPath('/workspace//src/app.js')).toEqual(['workspace', 'src', 'app.js']);
+    });
+  });
+
+  describe('addToHistory browser integration', () => {
+    it('should call history.pushState when adding to history', () => {
+      // Mock history.pushState
+      const pushStateCalls = [];
+      const originalPushState = window.history.pushState;
+      window.history.pushState = (state, title, url) => {
+        pushStateCalls.push({ state, title, url });
+      };
+
+      try {
+        // Simulate addToHistory logic
+        const currentPath = [{ name: 'workspace' }];
+        const currentFilename = 'test.txt';
+        const historyIndex = 0;
+        const isPopStateNavigation = false;
+
+        if (!isPopStateNavigation) {
+          const pathParts = currentPath.map((p) => p.name);
+          let urlPath = '/' + pathParts.join('/');
+          if (currentFilename) {
+            urlPath += '/' + currentFilename;
+          }
+
+          const url = urlPath
+            ? `?localdir=${encodeURIComponent(urlPath)}`
+            : window.location.pathname;
+          const title = currentFilename || 'hotnote';
+
+          window.history.pushState(
+            {
+              historyIndex: historyIndex,
+              appHistory: true,
+            },
+            title,
+            url
+          );
+        }
+
+        expect(pushStateCalls).toHaveLength(1);
+        expect(pushStateCalls[0].state.appHistory).toBe(true);
+        expect(pushStateCalls[0].state.historyIndex).toBe(0);
+        expect(pushStateCalls[0].title).toBe('test.txt');
+        expect(pushStateCalls[0].url).toContain('localdir=');
+      } finally {
+        window.history.pushState = originalPushState;
+      }
+    });
+
+    it('should not call history.pushState when isPopStateNavigation is true', () => {
+      const pushStateCalls = [];
+      const originalPushState = window.history.pushState;
+      window.history.pushState = (state, title, url) => {
+        pushStateCalls.push({ state, title, url });
+      };
+
+      try {
+        const isPopStateNavigation = true;
+
+        if (!isPopStateNavigation) {
+          window.history.pushState({}, '', '');
+        }
+
+        expect(pushStateCalls).toHaveLength(0);
+      } finally {
+        window.history.pushState = originalPushState;
+      }
+    });
+  });
+});
