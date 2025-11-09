@@ -624,6 +624,7 @@ const updateBreadcrumb = () => {
       fileItem.addEventListener('click', (e) => {
         e.stopPropagation();
         if (currentDirHandle) {
+          focusManager.saveFocusState();
           showFilePicker(currentDirHandle);
         }
       });
@@ -637,6 +638,7 @@ const updateBreadcrumb = () => {
       placeholder.addEventListener('click', (e) => {
         e.stopPropagation();
         if (currentDirHandle) {
+          focusManager.saveFocusState();
           showFilePicker(currentDirHandle);
         }
       });
@@ -692,6 +694,9 @@ const toggleRichMode = async () => {
 // Navigate to a specific path index (breadcrumb click)
 const navigateToPathIndex = async (index) => {
   if (index >= currentPath.length) return;
+
+  // Save focus state before navigation
+  focusManager.saveFocusState();
 
   // Save temp changes if file is dirty
   if (isDirty && currentFileHandle) {
@@ -1155,6 +1160,7 @@ const showFilePicker = async (dirHandle) => {
       deleteBtn.appendChild(deleteIcon);
       deleteBtn.addEventListener('click', async (e) => {
         e.stopPropagation(); // Prevent opening the file
+        focusManager.saveFocusState();
         await deleteFile(entry);
       });
       item.appendChild(deleteBtn);
@@ -1162,6 +1168,7 @@ const showFilePicker = async (dirHandle) => {
 
     item.addEventListener('click', async (e) => {
       e.stopPropagation();
+      focusManager.saveFocusState();
       if (entry.kind === 'directory') {
         await navigateToDirectory(entry);
       } else {
@@ -2361,10 +2368,22 @@ const initDarkMode = () => {
 };
 
 // Event listeners
-document.getElementById('new-btn').addEventListener('click', newFile);
-document.getElementById('back-btn').addEventListener('click', goBack);
-document.getElementById('forward-btn').addEventListener('click', goForward);
-document.getElementById('folder-up-btn').addEventListener('click', goFolderUp);
+document.getElementById('new-btn').addEventListener('click', () => {
+  focusManager.saveFocusState();
+  newFile();
+});
+document.getElementById('back-btn').addEventListener('click', () => {
+  focusManager.saveFocusState();
+  goBack();
+});
+document.getElementById('forward-btn').addEventListener('click', () => {
+  focusManager.saveFocusState();
+  goForward();
+});
+document.getElementById('folder-up-btn').addEventListener('click', () => {
+  focusManager.saveFocusState();
+  goFolderUp();
+});
 // Helper function to animate autosave label
 const animateAutosaveLabel = (shouldHide) => {
   const label = document.getElementById('autosave-label');
@@ -2390,9 +2409,13 @@ document.getElementById('autosave-checkbox').addEventListener('change', (e) => {
 });
 document.getElementById('rich-toggle-btn').addEventListener('click', () => {
   console.log('[RichMode] Rich toggle button clicked');
+  focusManager.saveFocusState();
   toggleRichMode();
 });
-document.getElementById('dark-mode-toggle').addEventListener('click', toggleDarkMode);
+document.getElementById('dark-mode-toggle').addEventListener('click', () => {
+  focusManager.saveFocusState();
+  toggleDarkMode();
+});
 
 // Browser back/forward button listener
 window.addEventListener('popstate', async (event) => {
@@ -2522,12 +2545,14 @@ const showResumePrompt = (folderName) => {
     `;
 
   document.getElementById('resume-folder-btn').addEventListener('click', () => {
+    focusManager.saveFocusState();
     hideFilePicker();
     openFolder();
   });
 
   document.getElementById('new-folder-btn').addEventListener('click', () => {
     // Clear saved folder name and show welcome prompt
+    focusManager.saveFocusState();
     localStorage.removeItem('lastFolderName');
     hideFilePicker();
     openFolder();
@@ -2552,6 +2577,7 @@ const showWelcomePrompt = () => {
     `;
 
   document.getElementById('welcome-folder-btn').addEventListener('click', () => {
+    focusManager.saveFocusState();
     hideFilePicker();
     openFolder();
   });
