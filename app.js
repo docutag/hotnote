@@ -702,10 +702,7 @@ const navigateToPathIndex = async (index) => {
   currentPath = currentPath.slice(0, index + 1);
   currentDirHandle = currentPath[currentPath.length - 1].handle;
 
-  // Close current file
-  currentFileHandle = null;
-  currentFilename = '';
-  await initEditor('', 'untitled');
+  // Don't close the current file - keep it open while showing picker
 
   // Add to navigation history
   addToHistory();
@@ -1262,10 +1259,7 @@ const navigateToDirectory = async (dirHandle) => {
   currentPath.push({ name: dirHandle.name, handle: dirHandle });
   currentDirHandle = dirHandle;
 
-  // Close current file
-  currentFileHandle = null;
-  currentFilename = '';
-  await initEditor('', 'untitled');
+  // Don't close the current file - keep it open while showing picker
 
   addToHistory();
   await showFilePicker(dirHandle);
