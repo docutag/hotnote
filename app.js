@@ -2780,6 +2780,11 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 
 // Initialize app
 (async () => {
+  // Log version at startup
+  // eslint-disable-next-line no-undef
+  const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'unknown';
+  console.log(`hotnote v${currentVersion}`);
+
   // Initialize editor on load
   await initEditor();
   updateBreadcrumb();
