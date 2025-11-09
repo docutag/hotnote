@@ -1099,6 +1099,9 @@ document.addEventListener('click', (e) => {
   // Check if picker is visible
   if (picker.classList.contains('hidden')) return;
 
+  // Don't close if showing welcome or resume prompt
+  if (picker.querySelector('.welcome-content')) return;
+
   // Don't close if click was inside the picker
   if (picker.contains(e.target)) return;
 

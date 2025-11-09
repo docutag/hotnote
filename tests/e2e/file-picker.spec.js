@@ -24,7 +24,9 @@ test.describe('File Picker', () => {
     await expect(closeButton).toHaveCount(0);
   });
 
-  test('should close file picker when clicking outside', async ({ page }) => {
+  test('should NOT close file picker when clicking outside during welcome/resume prompt', async ({
+    page,
+  }) => {
     await page.goto('/');
 
     // Wait for file picker to be visible with welcome content
@@ -36,8 +38,8 @@ test.describe('File Picker', () => {
     const editor = page.getByTestId('editor');
     await editor.click();
 
-    // File picker should now be hidden
-    await expect(filePicker).toHaveClass(/hidden/);
+    // File picker should still be visible (cannot dismiss welcome/resume prompt by clicking outside)
+    await expect(filePicker).not.toHaveClass(/hidden/);
   });
 
   test('should not close file picker when clicking inside it', async ({ page }) => {
