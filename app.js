@@ -186,6 +186,13 @@ let isDirty = false;
 // Original file content (for detecting undo to original state)
 let originalContent = '';
 
+// File polling and synchronization
+let lastKnownModified = null; // Timestamp when file was last loaded/saved
+let lastModifiedLocal = null; // Timestamp of last local edit
+let lastUserActivityTime = Date.now(); // Timestamp of last user interaction
+let filePollingInterval = null; // Interval ID for file polling
+let isPollingPaused = false; // Flag to pause polling during file picker operations
+
 // Temp storage for unsaved changes
 const TEMP_STORAGE_PREFIX = 'hotnote_temp_';
 
@@ -378,6 +385,10 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
 
   // onChange callback for content changes
   const handleContentChange = (content) => {
+    // Track user activity for file polling
+    updateUserActivity();
+    lastModifiedLocal = Date.now();
+
     if (content === originalContent) {
       if (isDirty) {
         isDirty = false;
@@ -503,6 +514,7 @@ const initCodeMirrorEditor = async (
 
       // Save editor state on selection change or scroll
       if (update.selectionSet || update.geometryChanged) {
+        updateUserActivity(); // Track cursor/scroll activity
         debouncedSaveEditorState();
       }
     }),
@@ -1156,6 +1168,9 @@ const openFolder = async () => {
 
 // Show file picker for a directory
 const showFilePicker = async (dirHandle) => {
+  // Pause file polling while picker is open
+  pauseFilePolling();
+
   const picker = document.getElementById('file-picker');
   const resizeHandle = document.getElementById('file-picker-resize-handle');
   picker.classList.remove('hidden');
@@ -1276,6 +1291,9 @@ const showFilePicker = async (dirHandle) => {
 window.hideFilePicker = () => {
   document.getElementById('file-picker').classList.add('hidden');
   document.getElementById('file-picker-resize-handle').classList.add('hidden');
+
+  // Resume file polling when picker is closed
+  resumeFilePolling();
 
   // Restore focus to editor if a file is currently open
   if (currentFileHandle) {
@@ -1628,6 +1646,11 @@ const openFileFromPicker = async (fileHandle) => {
     // Always load the original file content from disk
     const fileContent = await FileSystemAdapter.readFile(fileHandle);
 
+    // Initialize file modification tracking
+    const metadata = await FileSystemAdapter.getFileMetadata(fileHandle);
+    lastKnownModified = metadata.lastModified;
+    lastModifiedLocal = null;
+
     // Check for temp changes
     const pathKey = getFilePathKey();
     const tempContent = loadTempChanges(pathKey);
@@ -1662,6 +1685,9 @@ const openFileFromPicker = async (fileHandle) => {
     updateBreadcrumb();
     updateLogoState();
     hideFilePicker();
+
+    // Start file polling for external changes
+    startFilePolling();
 
     // Restore focus to editor after opening file
     focusManager.focusEditor({ delay: 100, reason: 'file-opened' });
@@ -1758,6 +1784,11 @@ const saveFile = async () => {
     // Update original content to the saved content
     originalContent = content;
 
+    // Update file modification tracking
+    const metadata = await FileSystemAdapter.getFileMetadata(currentFileHandle);
+    lastKnownModified = metadata.lastModified;
+    lastModifiedLocal = null; // Clear since we just saved
+
     // Clear temp changes after successful save
     const pathKey = getFilePathKey();
     if (pathKey) {
@@ -1813,6 +1844,154 @@ const debounce = (func, wait) => {
     clearTimeout(timeout);
     timeout = setTimeout(later, wait);
   };
+};
+
+// User activity tracking
+const updateUserActivity = () => {
+  lastUserActivityTime = Date.now();
+};
+
+const isUserIdle = () => {
+  const idleThreshold = 4000; // 4 seconds (between 3-5 as per requirements)
+  return Date.now() - lastUserActivityTime > idleThreshold;
+};
+
+// File polling utilities
+const shouldPollFile = () => {
+  return (
+    currentFileHandle !== null && // File is open
+    !isPollingPaused && // Not paused during file picker
+    isUserIdle() // User is idle
+  );
+};
+
+const checkFileForExternalChanges = async () => {
+  if (!shouldPollFile()) {
+    return;
+  }
+
+  try {
+    const metadata = await FileSystemAdapter.getFileMetadata(currentFileHandle);
+    const externalModified = metadata.lastModified;
+
+    // Check if file was modified externally
+    if (lastKnownModified && externalModified > lastKnownModified) {
+      // File changed externally - need to reconcile
+      await reconcileFileChanges(externalModified);
+    }
+  } catch (err) {
+    console.error('Error checking file for external changes:', err);
+    // File might have been deleted - stop polling
+    if (err.name === 'NotFoundError' || err.name === 'NotAllowedError') {
+      stopFilePolling();
+    }
+  }
+};
+
+const reconcileFileChanges = async (externalModified) => {
+  // Last edit wins: compare timestamps
+  if (lastModifiedLocal && lastModifiedLocal > externalModified) {
+    // Our local changes are newer - skip reload
+    console.log('[File Sync] Local changes are newer, skipping reload');
+    return;
+  }
+
+  // External changes are newer or we have no local edits - reload
+  console.log('[File Sync] External changes detected, reloading file');
+
+  try {
+    // Save current cursor and scroll position
+    const editorState = focusManager._captureEditorState();
+
+    // Read fresh content from disk
+    const freshContent = await FileSystemAdapter.readFile(currentFileHandle);
+
+    // Update editor with fresh content
+    if (editorManager) {
+      editorManager.setContent(freshContent);
+    } else if (editorView) {
+      editorView.dispatch({
+        changes: {
+          from: 0,
+          to: editorView.state.doc.length,
+          insert: freshContent,
+        },
+      });
+    }
+
+    // Update tracking variables
+    originalContent = freshContent;
+    isDirty = false;
+    lastKnownModified = externalModified;
+    lastModifiedLocal = null; // Clear local timestamp since we just loaded
+
+    // Clear temp changes
+    const pathKey = getFilePathKey();
+    if (pathKey) {
+      clearTempChanges(pathKey);
+    }
+
+    // Restore cursor and scroll
+    if (editorState) {
+      setTimeout(() => {
+        focusManager._restoreEditorState(editorState);
+      }, 50);
+    }
+
+    // Update UI
+    updateBreadcrumb();
+    showFileReloadNotification();
+  } catch (err) {
+    console.error('Error reloading file:', err);
+  }
+};
+
+const showFileReloadNotification = () => {
+  // Create toast notification
+  const toast = document.createElement('div');
+  toast.className = 'file-reload-toast';
+  toast.textContent = 'Reloaded from disk';
+  document.body.appendChild(toast);
+
+  // Show and auto-dismiss
+  setTimeout(() => {
+    toast.classList.add('show');
+  }, 10);
+
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => {
+      document.body.removeChild(toast);
+    }, 300);
+  }, 2500);
+};
+
+// File polling control
+const startFilePolling = () => {
+  if (filePollingInterval) {
+    clearInterval(filePollingInterval);
+  }
+
+  filePollingInterval = setInterval(checkFileForExternalChanges, 2500); // Check every 2.5 seconds
+  console.log('[File Sync] Started file polling');
+};
+
+const stopFilePolling = () => {
+  if (filePollingInterval) {
+    clearInterval(filePollingInterval);
+    filePollingInterval = null;
+    console.log('[File Sync] Stopped file polling');
+  }
+};
+
+const pauseFilePolling = () => {
+  isPollingPaused = true;
+  console.log('[File Sync] Paused file polling');
+};
+
+const resumeFilePolling = () => {
+  isPollingPaused = false;
+  console.log('[File Sync] Resumed file polling');
 };
 
 // Save current editor state to session file (debounced)

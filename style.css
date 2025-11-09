@@ -1610,3 +1610,27 @@ button:disabled:hover {
   --nord-bg: var(--bg-primary);
   --nord-fg: var(--text-primary);
 }
+
+/* File reload toast notification */
+.file-reload-toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+  font-size: 14px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.3s ease;
+  z-index: 10000;
+  pointer-events: none;
+}
+
+.file-reload-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
