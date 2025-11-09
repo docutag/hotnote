@@ -888,7 +888,7 @@ const goBack = async () => {
   // Restore editor state if available
   if (state.editorState) {
     // Use requestAnimationFrame to ensure editor is fully initialized
-    // eslint-disable-next-line no-undef
+
     requestAnimationFrame(() => {
       focusManager._restoreEditorState(state.editorState);
     });
@@ -967,7 +967,7 @@ const goForward = async () => {
   // Restore editor state if available
   if (state.editorState) {
     // Use requestAnimationFrame to ensure editor is fully initialized
-    // eslint-disable-next-line no-undef
+
     requestAnimationFrame(() => {
       focusManager._restoreEditorState(state.editorState);
     });
@@ -1880,7 +1880,7 @@ const checkFileForExternalChanges = async () => {
       await reconcileFileChanges(externalModified);
     }
   } catch (err) {
-    console.error('Error checking file for external changes:', err);
+    console.error('[File Sync] Error checking file for external changes:', err);
     // File might have been deleted - stop polling
     if (err.name === 'NotFoundError' || err.name === 'NotAllowedError') {
       stopFilePolling();
@@ -1892,30 +1892,136 @@ const reconcileFileChanges = async (externalModified) => {
   // Last edit wins: compare timestamps
   if (lastModifiedLocal && lastModifiedLocal > externalModified) {
     // Our local changes are newer - skip reload
-    console.log('[File Sync] Local changes are newer, skipping reload');
     return;
   }
 
   // External changes are newer or we have no local edits - reload
-  console.log('[File Sync] External changes detected, reloading file');
 
   try {
-    // Save current cursor and scroll position
-    const editorState = focusManager._captureEditorState();
+    // Add syncing visual feedback
+    const editorElement = document.getElementById('editor');
+    const breadcrumb = document.getElementById('breadcrumb');
+    if (editorElement) {
+      editorElement.classList.add('syncing');
+    }
+    if (breadcrumb) {
+      breadcrumb.classList.add('syncing');
+    }
+
+    // Capture current state BEFORE any changes
+    let capturedScrollTop = 0;
+    let capturedCursorLine = 0;
+    let capturedCursorColumn = 0;
+
+    if (editorManager) {
+      // Capture from markdown editor
+      if (editorManager.currentMode === 'wysiwyg') {
+        capturedScrollTop = editorManager.getScrollPosition();
+      } else {
+        const view = editorManager.currentEditor?.view;
+        if (view) {
+          capturedScrollTop = view.scrollDOM.scrollTop;
+        }
+      }
+      const cursor = editorManager.getCursor();
+      capturedCursorLine = cursor.line;
+      capturedCursorColumn = cursor.column;
+    } else if (editorView) {
+      // Capture from regular CodeMirror
+      capturedScrollTop = editorView.scrollDOM.scrollTop;
+      const pos = editorView.state.selection.main.head;
+      const line = editorView.state.doc.lineAt(pos);
+      capturedCursorLine = line.number - 1;
+      capturedCursorColumn = pos - line.from;
+    }
 
     // Read fresh content from disk
     const freshContent = await FileSystemAdapter.readFile(currentFileHandle);
 
-    // Update editor with fresh content
+    // Update editor with fresh content (preserving scroll position)
     if (editorManager) {
-      editorManager.setContent(freshContent);
+      const wasWYSIWYG = editorManager.currentMode === 'wysiwyg';
+
+      if (wasWYSIWYG) {
+        // For WYSIWYG: destroy and recreate to avoid duplicates
+        // Destroy old editor completely
+        editorManager.currentEditor.destroy();
+        editorManager.container.innerHTML = '';
+
+        // Create new editor with fresh content
+        await editorManager.init('wysiwyg', freshContent);
+
+        // Update focus manager with new editor instance
+        focusManager.setEditors(editorManager, null);
+
+        // Restore scroll after editor is ready
+        await editorManager.ready();
+
+        // Small delay to let WYSIWYG render, then restore position
+        setTimeout(() => {
+          if (editorManager.currentEditor) {
+            editorManager.currentEditor.setScrollPosition(capturedScrollTop);
+            // Restore cursor in WYSIWYG
+            try {
+              editorManager.setCursor(capturedCursorLine, capturedCursorColumn);
+            } catch (_e) {
+              // Line might not exist in new content
+            }
+          }
+        }, 100);
+      } else {
+        // Source mode: update with scroll preservation
+        const view = editorManager.currentEditor?.view;
+        if (view) {
+          view.dispatch({
+            changes: {
+              from: 0,
+              to: view.state.doc.length,
+              insert: freshContent,
+            },
+          });
+
+          // Restore scroll and cursor position immediately
+          requestAnimationFrame(() => {
+            view.scrollDOM.scrollTop = capturedScrollTop;
+
+            // Restore cursor position
+            try {
+              const lineObj = view.state.doc.line(capturedCursorLine + 1);
+              const pos = lineObj.from + Math.min(capturedCursorColumn, lineObj.length);
+              view.dispatch({
+                selection: { anchor: pos, head: pos },
+              });
+            } catch (_e) {
+              // Line might not exist in new content
+            }
+          });
+        }
+      }
     } else if (editorView) {
+      // For non-markdown files: update with scroll and cursor preservation
       editorView.dispatch({
         changes: {
           from: 0,
           to: editorView.state.doc.length,
           insert: freshContent,
         },
+      });
+
+      // Restore scroll and cursor position immediately
+      requestAnimationFrame(() => {
+        editorView.scrollDOM.scrollTop = capturedScrollTop;
+
+        // Restore cursor position
+        try {
+          const lineObj = editorView.state.doc.line(capturedCursorLine + 1);
+          const pos = lineObj.from + Math.min(capturedCursorColumn, lineObj.length);
+          editorView.dispatch({
+            selection: { anchor: pos, head: pos },
+          });
+        } catch (_e) {
+          console.log('[File Sync] Could not restore cursor');
+        }
       });
     }
 
@@ -1931,18 +2037,24 @@ const reconcileFileChanges = async (externalModified) => {
       clearTempChanges(pathKey);
     }
 
-    // Restore cursor and scroll
-    if (editorState) {
-      setTimeout(() => {
-        focusManager._restoreEditorState(editorState);
-      }, 50);
-    }
-
     // Update UI
     updateBreadcrumb();
+
+    // Remove syncing and blur states, restore focus
+    if (editorElement) {
+      editorElement.classList.remove('syncing');
+      editorElement.classList.remove('blurred');
+    }
+    if (breadcrumb) {
+      breadcrumb.classList.remove('syncing');
+    }
+
+    // Restore focus to editor
+    focusManager.focusEditor({ delay: 50, reason: 'file-synced' });
+
     showFileReloadNotification();
   } catch (err) {
-    console.error('Error reloading file:', err);
+    console.error('[File Sync] Error reloading file:', err);
   }
 };
 
@@ -1973,25 +2085,21 @@ const startFilePolling = () => {
   }
 
   filePollingInterval = setInterval(checkFileForExternalChanges, 2500); // Check every 2.5 seconds
-  console.log('[File Sync] Started file polling');
 };
 
 const stopFilePolling = () => {
   if (filePollingInterval) {
     clearInterval(filePollingInterval);
     filePollingInterval = null;
-    console.log('[File Sync] Stopped file polling');
   }
 };
 
 const pauseFilePolling = () => {
   isPollingPaused = true;
-  console.log('[File Sync] Paused file polling');
 };
 
 const resumeFilePolling = () => {
   isPollingPaused = false;
-  console.log('[File Sync] Resumed file polling');
 };
 
 // Save current editor state to session file (debounced)
