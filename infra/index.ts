@@ -23,12 +23,11 @@ const app = new digitalocean.App('hotnote-app', {
   spec: {
     name: 'hotnote',
     region: 'fra1', // Frankfurt
-    domains: [
-      {
-        name: 'hotnote.io',
-        type: 'PRIMARY',
-      },
-    ],
+    // Domain configuration - using newer 'domain' attribute instead of deprecated 'domains'
+    domain: {
+      name: 'hotnote.io',
+      type: 'PRIMARY',
+    },
     services: [
       {
         name: 'hotnote-web',
@@ -44,13 +43,23 @@ const app = new digitalocean.App('hotnote-app', {
         healthCheck: {
           httpPath: '/',
         },
-        routes: [
-          {
-            path: '/',
-          },
-        ],
       },
     ],
+    // Ingress configuration (replaces service-level routes)
+    ingress: {
+      rules: [
+        {
+          component: {
+            name: 'hotnote-web',
+          },
+          match: {
+            path: {
+              prefix: '/',
+            },
+          },
+        },
+      ],
+    },
   },
 });
 
