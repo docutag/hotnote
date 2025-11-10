@@ -1861,7 +1861,6 @@ button:disabled:hover {
 
   /* Prevent the sidebar and all its children from being focusable */
   user-select: none;
-  user-select: none;
   overflow: hidden auto;
   flex-shrink: 0;
   padding: 20px 0.5em; /* 0.5em padding on left and right */
@@ -1962,7 +1961,6 @@ button:disabled:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
-  user-select: none;
   user-select: none;
 }
 
