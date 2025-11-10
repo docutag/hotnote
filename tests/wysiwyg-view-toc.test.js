@@ -182,21 +182,23 @@ describe('WYSIWYGView TOC Features', () => {
       expect(mockView.state.tr.setSelection).toHaveBeenCalled();
     });
 
-    it('should dispatch transaction with scrollIntoView', () => {
+    it('should dispatch transaction with selection', () => {
       view.scrollToPosition(50);
 
-      expect(mockView.state.tr.scrollIntoView).toHaveBeenCalled();
+      // Verify transaction was dispatched
       expect(mockDispatch).toHaveBeenCalled();
+      // Note: scrollIntoView is now handled separately via DOM API, not in transaction
     });
 
-    it('should focus the editor after scrolling', (done) => {
+    it('should NOT directly manage focus (delegated to caller/FocusManager)', (done) => {
       view.scrollToPosition(100);
 
-      // Focus happens after a timeout
+      // scrollToPosition should NOT call focus directly anymore
+      // Focus management is now handled by the caller via FocusManager
       setTimeout(() => {
-        expect(mockFocus).toHaveBeenCalled();
+        expect(mockFocus).not.toHaveBeenCalled();
         done();
-      }, 100);
+      }, 150);
     });
 
     it('should clamp position to document bounds', () => {

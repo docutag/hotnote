@@ -1,40 +1,53 @@
-## TODO list:
+## TODO
 
-* 'git reader' mode - this is for the blog and documentation:
+* is the reload button broken for the new version popup?
+
+* scrollbar is weird on the document viewer rich text window since adding TOC
+
+- need to fix the TOC bar overlapping the shadow
+
+- need a cheap filesearch implementation
+
+- get rid of the breadcrumbs scrollbar
+
+- 'git reader' mode - this is for the blog and documentation:
 
   * we should have a special read-only document viewing mode
-  * <br />
 
-* fix links in the richtext editor (cmd + click to open)
+- the url params should be cleared on a reload
 
-- fix PWA not showing when hosting on digitalocean
+- should be able to open a file / folder using the path params (with the pop up open file dialog box)
 
-- explore adding photo and video playback (if not too heavy, don't want to bloat the build)
+- fix links in the richtext editor (cmd + click to open)
 
-- increase padding at top and bottom of the rich text editor, imitate a website or blog
+* fix PWA not showing when hosting on digitalocean
 
-- if there is only one item in the autocomplete list it should be selected
+* explore adding photo and video playback (if not too heavy, don't want to bloat the build)
 
-- security linting / detection
+* increase padding at top and bottom of the rich text editor, imitate a website or blog
 
-- dependabot warnings on version drift
+* if there is only one item in the autocomplete list it should be selected
 
-- the autosave text label should stay shown until a file is open, it should show itself on mouseover checkbox
+* security linting / detection
+
+* dependabot warnings on version drift
+
+* the autosave text label should stay shown until a file is open, it should show itself on mouseover checkbox
 
   adjust the preferences file so that any user preference or session information is stored under a unique user uid. This is because the \_session.HN (new name btw) file could be merged with other users, this is a breaking change
 
-- cmd + s should save on mac (ctrl + s on windows) and whatever the linux shortcut is
+* cmd + s should save on mac (ctrl + s on windows) and whatever the linux shortcut is
 
-- swap the theme and code buttons on the navbar
+* swap the theme and code buttons on the navbar
 
-- autocomplete / search entries should be displayed least-deep first (with autocomplete or local matches on top)
+* autocomplete / search entries should be displayed least-deep first (with autocomplete or local matches on top)
 
-- if there are autocomplete results in the search / autocomplete window, other search results should hold off for a second or two (we can still be gathering the results in the background, just not displaying them)
+* if there are autocomplete results in the search / autocomplete window, other search results should hold off for a second or two (we can still be gathering the results in the background, just not displaying them)
 
-- split app.js file up into library functions
+* split app.js file up into library functions
 
-- look into the preexisting shortcuts using the '.' and '/' keys to activate the search box, if they are now superceeded by the escape key functionality they should be removed
+* look into the preexisting shortcuts using the '.' and '/' keys to activate the search box, if they are now superceeded by the escape key functionality they should be removed
 
-- what does deleting an item do exactly? how long does it stay in the .trash folder? If you delete an item from the trash what happens to it? probably needs a different confirmation
+* what does deleting an item do exactly? how long does it stay in the .trash folder? If you delete an item from the trash what happens to it? probably needs a different confirmation
 
-- don't clear the trash automatically, offer a toaster popup to the user when opening the workspace 'take out the trash?'
+* don't clear the trash automatically, offer a toaster popup to the user when opening the workspace 'take out the trash?'

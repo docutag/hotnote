@@ -607,18 +607,19 @@ const renderTOCTree = (nodes, depth = 0) => {
     .map((node) => {
       const hasChildren = node.children && node.children.length > 0;
       const indent = depth * 16; // 16px per level (Material UI 8px grid)
+      const chevronIcon = node.collapsed ? 'add_box' : 'indeterminate_check_box';
       const chevron = hasChildren
-        ? `<span class="toc-chevron ${node.collapsed ? 'collapsed' : ''}" data-heading-id="${node.id}">▼</span>`
+        ? `<span class="toc-chevron material-symbols-outlined ${node.collapsed ? 'collapsed' : ''}" data-heading-id="${node.id}">${chevronIcon}</span>`
         : '<span class="toc-chevron-spacer"></span>';
 
       const childrenHtml =
         hasChildren && !node.collapsed ? renderTOCTree(node.children, depth + 1) : '';
 
       return `
-        <div class="toc-item-container">
-          <div class="toc-item" style="padding-left: ${indent}px" data-pos="${node.pos}" data-heading-id="${node.id}" data-level="${node.level}">
+        <div class="toc-item-container" tabindex="-1">
+          <div class="toc-item" style="padding-left: ${indent}px" data-pos="${node.pos}" data-heading-id="${node.id}" data-level="${node.level}" tabindex="-1">
             ${chevron}
-            <span class="toc-text" title="${node.text}">${node.text}</span>
+            <span class="toc-text" title="${node.text}" tabindex="-1">${node.text}</span>
           </div>
           ${childrenHtml}
         </div>
@@ -678,8 +679,15 @@ const attachTOCEventListeners = () => {
   tocItems.forEach((item) => {
     const textSpan = item.querySelector('.toc-text');
     if (textSpan) {
+      // Prevent mousedown from stealing focus from the editor
+      textSpan.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // Critical: prevents focus from leaving the editor
+        console.log('[TOC] Mousedown prevented - maintaining editor focus');
+      });
+
       textSpan.addEventListener('click', (e) => {
         e.stopPropagation();
+        e.preventDefault();
         const pos = parseInt(item.dataset.pos, 10);
         console.log('[TOC] Clicked heading at position:', pos);
 
@@ -688,8 +696,24 @@ const attachTOCEventListeners = () => {
         console.log('[TOC] Active editor:', editor);
 
         if (editor && editor.scrollToPosition) {
+          // Block session saves during TOC navigation to prevent scroll reset
+          if (window.blockSessionSave) {
+            clearTimeout(window.blockSessionSave);
+          }
+          window.blockSessionSave = true;
+          console.log('[TOC] Session saves blocked during navigation');
+
+          // Scroll to the position (focus should be maintained by mousedown prevention)
           console.log('[TOC] Calling scrollToPosition with:', pos);
           editor.scrollToPosition(pos);
+
+          // Re-enable session saves after scroll completes (200ms should be enough)
+          setTimeout(() => {
+            window.blockSessionSave = false;
+            console.log('[TOC] Session saves re-enabled');
+          }, 200);
+
+          console.log('[TOC] Scroll completed, focus maintained by mousedown handler');
         } else {
           console.error('[TOC] Editor or scrollToPosition not available');
         }
@@ -699,9 +723,18 @@ const attachTOCEventListeners = () => {
 
   // Click on chevron to toggle collapse
   chevrons.forEach((chevron) => {
+    // Prevent mousedown from stealing focus from the editor
+    chevron.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // Critical: prevents focus from leaving the editor
+    });
+
     chevron.addEventListener('click', (e) => {
       e.stopPropagation();
       chevron.classList.toggle('collapsed');
+
+      // Toggle icon between add_box (collapsed) and indeterminate_check_box (expanded)
+      const isCollapsed = chevron.classList.contains('collapsed');
+      chevron.textContent = isCollapsed ? 'add_box' : 'indeterminate_check_box';
 
       // Find and toggle the children container
       const container = chevron.closest('.toc-item-container');
@@ -713,7 +746,99 @@ const attachTOCEventListeners = () => {
       });
     });
   });
+
+  // Prevent ALL mousedown events in the entire TOC area from stealing focus
+  // This must be done at the top level to catch all clicks including background
+  const markdownSidebar = document.getElementById('markdown-sidebar');
+  const tocContainer = document.getElementById('markdown-toc');
+  const tocContent = document.getElementById('toc-content');
+
+  console.log('[TOC] Setting up focus prevention on sidebar:', markdownSidebar);
+
+  // Apply to all TOC-related elements to be thorough
+  [markdownSidebar, tocContainer, tocContent].forEach((element) => {
+    if (element) {
+      // Remove any existing listener first to avoid duplicates
+      element.removeEventListener('mousedown', preventTOCMousedown, true);
+      // Add capture-phase listener
+      element.addEventListener('mousedown', preventTOCMousedown, true);
+      console.log('[TOC] Added mousedown prevention to:', element.id);
+    }
+  });
+
+  // Also add a document-level catch-all handler to prevent ANY clicks in TOC/editor areas from losing focus
+  // This catches clicks on scrollbars, padding, margins, or any other missed elements
+  document.addEventListener(
+    'mousedown',
+    (e) => {
+      const sidebar = document.getElementById('markdown-sidebar');
+      const editorWrapper = document.getElementById('editor');
+
+      // Check if the click is within the TOC sidebar or editor area
+      const inTOC = sidebar && sidebar.contains(e.target);
+      const inEditor = editorWrapper && editorWrapper.contains(e.target);
+
+      if (inTOC || inEditor) {
+        console.log(
+          '[Focus] Document-level mousedown in',
+          inTOC ? 'TOC' : 'Editor',
+          'area, target:',
+          e.target
+        );
+
+        // Only prevent default if clicking on non-interactive background elements
+        const isBackgroundElement =
+          e.target.id === 'markdown-sidebar' ||
+          e.target.id === 'markdown-toc' ||
+          e.target.id === 'toc-content' ||
+          e.target.id === 'editor' ||
+          e.target.classList.contains('markdown-sidebar') ||
+          e.target.classList.contains('toc-content') ||
+          e.target.classList.contains('toc-title');
+
+        if (isBackgroundElement) {
+          e.preventDefault();
+          console.log('[Focus] Prevented background click from stealing focus');
+        }
+
+        // Ensure editor maintains focus when clicking in these areas
+        // But don't call focus if we're clicking a TOC item (to avoid scroll interference)
+        const isTOCItem = e.target.closest('.toc-item') || e.target.classList.contains('toc-text');
+
+        if (!isTOCItem) {
+          const editor = appState.editorManager?.getActiveEditor();
+          if (editor && editor.focus) {
+            // Use a very short delay to let other handlers complete first
+            setTimeout(() => {
+              editor.focus();
+              console.log('[Focus] Editor re-focused from document-level handler');
+            }, 10);
+          }
+        }
+      }
+    },
+    true
+  ); // Capture phase
 };
+
+// Separate function to prevent mousedown from stealing focus
+function preventTOCMousedown(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  console.log(
+    '[TOC] Mousedown prevented on:',
+    e.target,
+    'target ID:',
+    e.target.id,
+    'target class:',
+    e.target.className,
+    'maintaining editor focus'
+  );
+
+  // NOTE: Do NOT call editor.focus() here!
+  // Calling focus scrolls to current cursor position, interfering with TOC navigation
+  // The e.preventDefault() is sufficient to maintain focus
+}
 
 // Update suggested links (other markdown files in the same folder)
 const updateSuggestedLinks = async () => {
@@ -3219,19 +3344,42 @@ function updateEditorBlurState() {
   const editorElement = document.getElementById('editor');
   if (!editorElement) return;
 
-  if (appState.focusManager.hasEditorFocus()) {
+  const hasEditorFocus = appState.focusManager.hasEditorFocus();
+  console.log(
+    '[Focus] updateEditorBlurState - hasEditorFocus:',
+    hasEditorFocus,
+    'activeElement:',
+    document.activeElement
+  );
+
+  if (hasEditorFocus) {
     editorElement.classList.remove('blurred');
   } else {
-    editorElement.classList.add('blurred');
+    // Only add blur if focus went to something meaningful (not null/body)
+    const activeElement = document.activeElement;
+    const isFocusOnNothing =
+      !activeElement || activeElement === document.body || activeElement.tagName === 'BODY';
+
+    if (isFocusOnNothing) {
+      // Focus went nowhere - don't blur, but also DON'T restore focus
+      // Restoring focus can trigger scroll resets during TOC navigation
+      console.log('[Focus] Focus went nowhere, maintaining current state without blur');
+      // Note: NOT calling editor.focus() here to avoid scroll interference
+    } else {
+      // Focus went to a real element (like search box, button, etc) - blur is OK
+      editorElement.classList.add('blurred');
+    }
   }
 }
 
 // Monitor focus changes to update blur state
-document.addEventListener('focusin', () => {
+document.addEventListener('focusin', (e) => {
+  console.log('[Focus] focusin event, target:', e.target);
   updateEditorBlurState();
 });
 
-document.addEventListener('focusout', () => {
+document.addEventListener('focusout', (e) => {
+  console.log('[Focus] focusout event, target:', e.target, 'relatedTarget:', e.relatedTarget);
   // Use setTimeout to allow focus to shift to new element
   setTimeout(() => {
     updateEditorBlurState();

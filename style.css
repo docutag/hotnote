@@ -1591,18 +1591,12 @@ button:disabled:hover {
   padding: 0 1.5rem;
   overflow: auto;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start; /* Left-align content, scrollbar at right edge */
 }
 
 .milkdown > * {
   width: 100%;
-  max-width: 700px;
-}
-
-@media (width >= 1400px) {
-  .milkdown > * {
-    max-width: 50%;
-  }
+  max-width: none; /* Remove constraint to allow full width */
 }
 
 @media (width <= 768px) {
@@ -1861,13 +1855,17 @@ button:disabled:hover {
 .markdown-sidebar {
   display: flex;
   flex-direction: column;
-  width: 280px;
+  width: 300px; /* Increased by 25% from 240px */
   background: var(--bg-primary);
   border-right: 1px solid var(--border);
+
+  /* Prevent the sidebar and all its children from being focusable */
+  user-select: none;
+  user-select: none;
   overflow: hidden auto;
   flex-shrink: 0;
-  padding: 24px 16px;
-  gap: 32px;
+  padding: 20px 0.5em; /* 0.5em padding on left and right */
+  gap: 28px;
 }
 
 .markdown-sidebar.hidden {
@@ -1882,11 +1880,11 @@ button:disabled:hover {
 }
 
 .toc-title {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
   margin: 0;
-  padding: 0 12px 8px;
+  padding: 0 8px 6px;
   text-transform: uppercase;
   letter-spacing: 0.8px;
   border-bottom: 1px solid var(--border);
@@ -1895,13 +1893,13 @@ button:disabled:hover {
 .toc-content {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px; /* Reduced from 4px for tighter spacing */
 }
 
 .toc-item-container {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px; /* Reduced from 4px for tighter spacing */
 }
 
 .toc-item-container.hidden {
@@ -1911,15 +1909,15 @@ button:disabled:hover {
 .toc-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 8px;
+  gap: 6px; /* Reduced from 8px for tighter layout */
+  padding: 8px; /* Reduced padding for better alignment */
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 13px; /* Slightly smaller for more compact look */
+  line-height: 1.4;
   color: var(--text-primary);
-  min-height: 40px;
+  min-height: 36px; /* Reduced from 40px */
   user-select: none;
 }
 
@@ -1932,25 +1930,29 @@ button:disabled:hover {
 }
 
 .toc-chevron {
-  font-size: 14px;
+  font-size: 16px; /* Material Icons look better at 16px */
   color: var(--text-secondary);
   cursor: pointer;
   user-select: none;
-  transition: transform 0.2s ease;
+  transition: color 0.2s ease;
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
+.toc-chevron:hover {
+  color: var(--text-primary);
+}
+
 .toc-chevron.collapsed {
-  transform: rotate(-90deg);
+  /* No rotation - we swap icons instead */
 }
 
 .toc-chevron-spacer {
-  width: 20px;
+  width: 16px; /* Reduced from 20px */
   flex-shrink: 0;
 }
 
@@ -1960,6 +1962,8 @@ button:disabled:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+  user-select: none;
+  user-select: none;
 }
 
 .toc-text:hover {
@@ -2057,12 +2061,10 @@ button:disabled:hover {
   display: none !important;
 }
 
-/* Desktop layout: TOC left, document right, centered together */
+/* Desktop layout: TOC left, document right */
 @media (width >= 769px) {
   #editor-wrapper {
     flex-direction: row;
-    max-width: 1400px;
-    margin: 0 auto;
     width: 100%;
   }
 
