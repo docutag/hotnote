@@ -20,6 +20,20 @@
 
 - fix links in the richtext editor (cmd + click to open)
 
+* Find replace function looses editor focus \[HIGH]
+
+* Text should be saved after typing so that it is retrieved asap by other windows looking at the same doc
+
+* Navbar animation is inconsistent, only plays on load
+
+* Rich text navigation pane should be collapsible
+
+* the logo letters are too far apart, and the gap between HOT NOTES.IO isn't showing during the startup animation
+
+* Theme the find / replace feature in the code window
+
+* `index-YF0iOazR.js:92 Uncaught (in promise) NotFoundError: A requested file or directory could not be found at the time an operation was processed.`
+
 * fix PWA not showing when hosting on digitalocean
 
 * explore adding photo and video playback (if not too heavy, don't want to bloat the build)
@@ -51,3 +65,16 @@
 * what does deleting an item do exactly? how long does it stay in the .trash folder? If you delete an item from the trash what happens to it? probably needs a different confirmation
 
 * don't clear the trash automatically, offer a toaster popup to the user when opening the workspace 'take out the trash?'
+
+* fix the deprecations:
+
+```
+npm install --legacy-peer-deps
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated @humanwhocodes/config-array@0.13.0: Use @eslint/config-array instead
+npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated @humanwhocodes/object-schema@2.0.3: Use @eslint/object-schema instead
+npm warn deprecated eslint@8.57.1: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+```
