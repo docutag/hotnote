@@ -146,6 +146,14 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
     }
     // Save session state on content change
     debouncedSaveEditorState();
+
+    // Update TOC if in WYSIWYG mode for markdown files
+    if (
+      isMarkdownFile(appState.currentFilename) &&
+      appState.editorManager?.getMode() === 'wysiwyg'
+    ) {
+      debouncedUpdateTOC();
+    }
   };
 
   if (isMarkdownFile(filename)) {
@@ -164,6 +172,10 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
     );
     await appState.editorManager.ready();
     console.log('[Editor] EditorManager initialized');
+
+    // Initialize TOC and suggested links for markdown files
+    updateTOC();
+    await updateSuggestedLinks();
   } else {
     // Use CodeMirror directly for non-markdown files
     console.log('[Editor] Initializing CodeMirror for non-markdown file');
@@ -559,6 +571,233 @@ const toggleRichMode = async () => {
   localStorage.setItem(`mode_${appState.currentFilename}`, newMode);
 
   updateRichToggleButton();
+  updateTOC(); // Update TOC after mode change
+  await updateSuggestedLinks(); // Update suggested links after mode change
+};
+
+// Build hierarchical structure from flat headings array
+const buildHeadingTree = (headings) => {
+  const root = { children: [], level: 0 };
+  const stack = [root];
+
+  headings.forEach((heading) => {
+    // Pop from stack until we find the parent level
+    while (stack.length > 1 && stack[stack.length - 1].level >= heading.level) {
+      stack.pop();
+    }
+
+    const parent = stack[stack.length - 1];
+    const node = { ...heading, children: [], collapsed: false };
+
+    if (!parent.children) {
+      parent.children = [];
+    }
+    parent.children.push(node);
+    stack.push(node);
+  });
+
+  return root.children;
+};
+
+// Render TOC tree with collapsible sections
+const renderTOCTree = (nodes, depth = 0) => {
+  if (!nodes || nodes.length === 0) return '';
+
+  const items = nodes
+    .map((node) => {
+      const hasChildren = node.children && node.children.length > 0;
+      const indent = depth * 16; // 16px per level (Material UI 8px grid)
+      const chevron = hasChildren
+        ? `<span class="toc-chevron ${node.collapsed ? 'collapsed' : ''}" data-heading-id="${node.id}">▼</span>`
+        : '<span class="toc-chevron-spacer"></span>';
+
+      const childrenHtml =
+        hasChildren && !node.collapsed ? renderTOCTree(node.children, depth + 1) : '';
+
+      return `
+        <div class="toc-item-container">
+          <div class="toc-item" style="padding-left: ${indent}px" data-pos="${node.pos}" data-heading-id="${node.id}" data-level="${node.level}">
+            ${chevron}
+            <span class="toc-text" title="${node.text}">${node.text}</span>
+          </div>
+          ${childrenHtml}
+        </div>
+      `;
+    })
+    .join('');
+
+  return items;
+};
+
+// Update the TOC based on current editor state
+const updateTOC = () => {
+  const tocContent = document.getElementById('toc-content');
+  const markdownSidebar = document.getElementById('markdown-sidebar');
+
+  // Only show TOC in WYSIWYG mode for markdown files
+  const isWysiwygMode = appState.editorManager && appState.editorManager.getMode() === 'wysiwyg';
+  const isMarkdown = isMarkdownFile(appState.currentFilename);
+
+  if (!isWysiwygMode || !isMarkdown || !appState.editorManager) {
+    markdownSidebar.classList.add('hidden');
+    return;
+  }
+
+  // Show sidebar
+  markdownSidebar.classList.remove('hidden');
+
+  // Extract headings from WYSIWYG editor
+  const editor = appState.editorManager.getActiveEditor();
+  if (!editor || !editor.getHeadings) {
+    tocContent.innerHTML = '<p class="toc-empty">No headings found</p>';
+    return;
+  }
+
+  const headings = editor.getHeadings();
+  if (headings.length === 0) {
+    tocContent.innerHTML = '<p class="toc-empty">No headings found</p>';
+    return;
+  }
+
+  // Build and render tree
+  const tree = buildHeadingTree(headings);
+  tocContent.innerHTML = renderTOCTree(tree);
+
+  // Add event listeners for TOC items
+  attachTOCEventListeners();
+};
+
+// Attach click handlers to TOC items
+const attachTOCEventListeners = () => {
+  const tocItems = document.querySelectorAll('.toc-item');
+  const chevrons = document.querySelectorAll('.toc-chevron');
+
+  console.log('[TOC] Attaching event listeners to', tocItems.length, 'items');
+
+  // Click on heading text to scroll
+  tocItems.forEach((item) => {
+    const textSpan = item.querySelector('.toc-text');
+    if (textSpan) {
+      textSpan.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const pos = parseInt(item.dataset.pos, 10);
+        console.log('[TOC] Clicked heading at position:', pos);
+
+        const editor = appState.editorManager?.getActiveEditor();
+        console.log('[TOC] Editor manager:', appState.editorManager);
+        console.log('[TOC] Active editor:', editor);
+
+        if (editor && editor.scrollToPosition) {
+          console.log('[TOC] Calling scrollToPosition with:', pos);
+          editor.scrollToPosition(pos);
+        } else {
+          console.error('[TOC] Editor or scrollToPosition not available');
+        }
+      });
+    }
+  });
+
+  // Click on chevron to toggle collapse
+  chevrons.forEach((chevron) => {
+    chevron.addEventListener('click', (e) => {
+      e.stopPropagation();
+      chevron.classList.toggle('collapsed');
+
+      // Find and toggle the children container
+      const container = chevron.closest('.toc-item-container');
+      const nestedContainers = Array.from(
+        container.querySelectorAll(':scope > .toc-item-container')
+      );
+      nestedContainers.forEach((nested) => {
+        nested.classList.toggle('hidden');
+      });
+    });
+  });
+};
+
+// Update suggested links (other markdown files in the same folder)
+const updateSuggestedLinks = async () => {
+  const suggestedLinksContent = document.getElementById('suggested-links-content');
+  const suggestedLinksMobileContent = document.getElementById('suggested-links-mobile-content');
+  const suggestedLinksMobile = document.getElementById('suggested-links-mobile');
+
+  // Only show suggested links in WYSIWYG mode for markdown files
+  const isWysiwygMode = appState.editorManager && appState.editorManager.getMode() === 'wysiwyg';
+  const isMarkdown = isMarkdownFile(appState.currentFilename);
+
+  if (!isWysiwygMode || !isMarkdown || !appState.currentDirHandle) {
+    suggestedLinksMobile.classList.add('hidden');
+    return;
+  }
+
+  try {
+    const files = [];
+    for await (const entry of appState.currentDirHandle.values()) {
+      if (
+        entry.kind === 'file' &&
+        isMarkdownFile(entry.name) &&
+        entry.name !== appState.currentFilename
+      ) {
+        files.push(entry);
+      }
+    }
+
+    // Sort alphabetically
+    files.sort((a, b) => a.name.localeCompare(b.name));
+
+    if (files.length === 0) {
+      suggestedLinksContent.innerHTML =
+        '<p class="suggested-links-empty">No other markdown files</p>';
+      suggestedLinksMobileContent.innerHTML =
+        '<p class="suggested-links-empty">No other markdown files</p>';
+      suggestedLinksMobile.classList.add('hidden');
+      return;
+    }
+
+    // Show mobile container
+    suggestedLinksMobile.classList.remove('hidden');
+
+    // Render links
+    const linksHtml = files
+      .map((file) => {
+        return `<div class="suggested-link" data-filename="${file.name}" title="${file.name}">
+          <span class="material-symbols-outlined">description</span>
+          <span class="suggested-link-text">${file.name}</span>
+        </div>`;
+      })
+      .join('');
+
+    suggestedLinksContent.innerHTML = linksHtml;
+    suggestedLinksMobileContent.innerHTML = linksHtml;
+
+    // Attach click handlers
+    attachSuggestedLinksEventListeners();
+  } catch (error) {
+    console.error('[SuggestedLinks] Error reading directory:', error);
+    suggestedLinksContent.innerHTML = '<p class="suggested-links-empty">Error loading files</p>';
+    suggestedLinksMobileContent.innerHTML =
+      '<p class="suggested-links-empty">Error loading files</p>';
+  }
+};
+
+// Attach click handlers to suggested links
+const attachSuggestedLinksEventListeners = () => {
+  const links = document.querySelectorAll('.suggested-link');
+
+  links.forEach((link) => {
+    link.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const filename = link.dataset.filename;
+      if (filename && appState.currentDirHandle) {
+        try {
+          const fileHandle = await appState.currentDirHandle.getFileHandle(filename);
+          await openFileFromPicker(fileHandle);
+        } catch (error) {
+          console.error('[SuggestedLinks] Error opening file:', error);
+        }
+      }
+    });
+  });
 };
 
 // Navigate to a specific path index (breadcrumb click)
@@ -1756,6 +1995,9 @@ const showFileReloadNotification = () => {
 
 // Debounced version (save every 2 seconds)
 const debouncedSaveEditorState = createDebouncedSaveEditorState(getRelativeFilePath);
+
+// Debounced TOC update (update every 500ms after typing stops)
+const debouncedUpdateTOC = debounce(updateTOC, 500);
 
 // Fuzzy match helper - handles case-insensitive, substring, and space-as-wildcard matching
 const fuzzyMatch = (text, query) => {

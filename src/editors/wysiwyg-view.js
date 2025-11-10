@@ -219,4 +219,95 @@ export class WYSIWYGView {
   isActive() {
     return this.editor !== null;
   }
+
+  /**
+   * Extract headings from the document for TOC
+   * Returns array of {level, text, id, pos}
+   */
+  getHeadings() {
+    if (!this.editor) {
+      return [];
+    }
+
+    const headings = [];
+
+    try {
+      this.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const { state } = view;
+        const { doc } = state;
+
+        doc.descendants((node, pos) => {
+          if (node.type.name === 'heading') {
+            const level = node.attrs.level;
+            const text = node.textContent;
+            // Create a simple ID from the text
+            const id = text
+              .toLowerCase()
+              .replace(/[^\w\s-]/g, '')
+              .replace(/\s+/g, '-');
+
+            headings.push({
+              level,
+              text,
+              id: `heading-${id}-${pos}`,
+              pos,
+            });
+          }
+        });
+      });
+    } catch (error) {
+      console.error('[WYSIWYGView] Error extracting headings:', error);
+    }
+
+    return headings;
+  }
+
+  /**
+   * Scroll to a specific position in the document
+   * Sets cursor at the position and scrolls to it
+   */
+  scrollToPosition(pos) {
+    if (!this.editor) {
+      console.error('[WYSIWYGView] scrollToPosition: editor not initialized');
+      return;
+    }
+
+    console.log('[WYSIWYGView] scrollToPosition called with pos:', pos);
+
+    try {
+      this.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const { state, dispatch } = view;
+        const { doc } = state;
+
+        console.log('[WYSIWYGView] Document size:', doc.content.size);
+
+        // Ensure position is valid
+        const safePos = Math.max(0, Math.min(pos, doc.content.size));
+        console.log('[WYSIWYGView] Safe position:', safePos);
+
+        // Create selection at that position and scroll to it
+        const selection = TextSelection.create(doc, safePos);
+        console.log('[WYSIWYGView] Created selection:', selection);
+
+        const tr = state.tr.setSelection(selection).scrollIntoView();
+        dispatch(tr);
+        console.log('[WYSIWYGView] Dispatched transaction');
+
+        // Ensure editor maintains focus
+        setTimeout(() => {
+          const editorElement = view.dom;
+          if (editorElement) {
+            console.log('[WYSIWYGView] Focusing editor element');
+            editorElement.focus();
+          } else {
+            console.error('[WYSIWYGView] Editor DOM element not found');
+          }
+        }, 100);
+      });
+    } catch (error) {
+      console.error('[WYSIWYGView] Error scrolling to position:', error);
+    }
+  }
 }
