@@ -147,23 +147,23 @@ let isPollingPaused = false; // Flag to pause polling during file picker operati
 
 // Temp storage wrappers using core.js functions
 const getFilePathKey = () => {
-  if (!appState.appState.currentFileHandle) return null;
-  return getFilePathKeyCore(appState.appState.currentPath, appState.appState.currentFilename);
+  if (!appState.currentFileHandle) return null;
+  return getFilePathKeyCore(appState.currentPath, appState.currentFilename);
 };
 
 // Get relative file path (excluding root folder name) for session storage
 const getRelativeFilePath = () => {
-  if (!appState.appState.currentFileHandle) return null;
+  if (!appState.currentFileHandle) return null;
   // Skip the first element (root folder) since we're already inside it when loading
-  const pathParts = appState.appState.currentPath.slice(1).map((p) => p.name);
-  pathParts.push(appState.appState.currentFilename);
+  const pathParts = appState.currentPath.slice(1).map((p) => p.name);
+  pathParts.push(appState.currentFilename);
   return pathParts.join('/');
 };
 
 // Save temp changes wrapper
 const saveTempChanges = () => {
   const key = getFilePathKey();
-  if (!key || !appState.appState.isDirty) return;
+  if (!key || !appState.isDirty) return;
 
   const content = getEditorContent();
   saveTempChangesCore(key, content);
