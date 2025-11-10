@@ -180,6 +180,7 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
     // Use CodeMirror directly for non-markdown files
     console.log('[Editor] Initializing CodeMirror for non-markdown file');
     await initCodeMirrorEditor(initialContent, filename, handleContentChange);
+    updateTOC(); // Hide TOC for non-markdown files
   }
 
   appState.isDirty = false;
