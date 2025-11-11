@@ -165,6 +165,14 @@ export const navigateToPathIndex = async (
     saveTempChanges();
   }
 
+  // Save current file state for restoration if user cancels
+  appState.previousFileHandle = appState.currentFileHandle;
+  appState.previousFilename = appState.currentFilename;
+
+  // Clear current file to show file picker cleanly
+  appState.currentFileHandle = null;
+  appState.currentFilename = '';
+
   // Truncate path to the clicked index
   appState.currentPath = appState.currentPath.slice(0, index + 1);
   if (appState.currentPath[appState.currentPath.length - 1]) {
@@ -172,7 +180,6 @@ export const navigateToPathIndex = async (
       appState.currentPath[appState.currentPath.length - 1].handle || appState.currentDirHandle;
   }
 
-  // Don't close the current file - keep it open while showing picker
   // Note: Don't add to history - breadcrumb navigation is just for browsing
 
   // Show file picker for this directory

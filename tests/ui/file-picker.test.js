@@ -236,6 +236,54 @@ describe('File Picker', () => {
 
       expect(appState.focusManager.focusEditor).not.toHaveBeenCalled();
     });
+
+    it('should restore previous file if picker closed without selection', () => {
+      // Setup: user had a file open, then navigated breadcrumb
+      const savedFile = createMockFileHandle('important.js', 'content');
+      appState.previousFileHandle = savedFile;
+      appState.previousFilename = 'important.js';
+      appState.currentFileHandle = null; // Cleared by breadcrumb navigation
+      appState.currentFilename = '';
+
+      hideFilePicker();
+
+      // Should restore the previous file
+      expect(appState.currentFileHandle).toBe(savedFile);
+      expect(appState.currentFilename).toBe('important.js');
+      // Should clear the previous state
+      expect(appState.previousFileHandle).toBeNull();
+      expect(appState.previousFilename).toBe('');
+    });
+
+    it('should not restore if a new file was selected', () => {
+      // Setup: user had a file open, then selected a different file
+      appState.previousFileHandle = createMockFileHandle('old.js', 'old content');
+      appState.previousFilename = 'old.js';
+      appState.currentFileHandle = createMockFileHandle('new.js', 'new content');
+      appState.currentFilename = 'new.js';
+
+      hideFilePicker();
+
+      // Should keep the newly selected file
+      expect(appState.currentFilename).toBe('new.js');
+      // Should clear the previous state
+      expect(appState.previousFileHandle).toBeNull();
+      expect(appState.previousFilename).toBe('');
+    });
+
+    it('should not restore if there was no previous file', () => {
+      // Setup: no file was open before
+      appState.previousFileHandle = null;
+      appState.previousFilename = '';
+      appState.currentFileHandle = null;
+      appState.currentFilename = '';
+
+      hideFilePicker();
+
+      // Should remain empty
+      expect(appState.currentFileHandle).toBeNull();
+      expect(appState.currentFilename).toBe('');
+    });
   });
 
   describe('initFilePickerResize', () => {

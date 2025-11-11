@@ -144,6 +144,17 @@ export const hideFilePicker = () => {
     window.fileSyncManager.resume();
   }
 
+  // Restore previous file if picker was closed without selecting a new file
+  // This happens when user clicks breadcrumb to browse, then closes picker
+  if (!appState.currentFileHandle && appState.previousFileHandle) {
+    appState.currentFileHandle = appState.previousFileHandle;
+    appState.currentFilename = appState.previousFilename;
+  }
+
+  // Clear previous file state now that we've handled restoration
+  appState.previousFileHandle = null;
+  appState.previousFilename = '';
+
   // Restore focus to editor if a file is currently open
   if (appState.currentFileHandle) {
     appState.focusManager.focusEditor({ delay: 50, reason: 'picker-hidden' });
@@ -305,6 +316,10 @@ export const openFileFromPicker = async (fileHandle) => {
 
     appState.currentFileHandle = fileHandle;
     appState.currentFilename = fileHandle.name;
+
+    // Clear previous file state since we're opening a new file
+    appState.previousFileHandle = null;
+    appState.previousFilename = '';
 
     // Always load the original file content from disk
     const fileContent = await FileSystemAdapter.readFile(fileHandle);
