@@ -128,6 +128,7 @@ const updateBreadcrumb = () => {
     openFolder,
     showFilePicker,
     saveFocusState: () => appState.focusManager.saveFocusState(),
+    saveTempChanges,
   });
 };
 
