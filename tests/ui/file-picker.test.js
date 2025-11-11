@@ -199,6 +199,43 @@ describe('File Picker', () => {
       const fileItems = filePickerElement.querySelectorAll('.file-item');
       expect(fileItems.length).toBe(0);
     });
+
+    it('should clear current file and save to previous when showing picker', async () => {
+      // Setup: user has a file open
+      const openFile = createMockFileHandle('important.js', 'content');
+      appState.currentFileHandle = openFile;
+      appState.currentFilename = 'important.js';
+
+      const mockDirHandle = createMockDirectoryHandle('test-dir', []);
+      FileSystemAdapter.listDirectory.mockResolvedValue([]);
+
+      await showFilePicker(mockDirHandle);
+
+      // File should be cleared when picker is shown
+      expect(appState.currentFileHandle).toBeNull();
+      expect(appState.currentFilename).toBe('');
+
+      // But saved to previous for restoration
+      expect(appState.previousFileHandle).toBe(openFile);
+      expect(appState.previousFilename).toBe('important.js');
+    });
+
+    it('should not save to previous if no file was open', async () => {
+      // Setup: no file open
+      appState.currentFileHandle = null;
+      appState.currentFilename = '';
+      appState.previousFileHandle = null;
+      appState.previousFilename = '';
+
+      const mockDirHandle = createMockDirectoryHandle('test-dir', []);
+      FileSystemAdapter.listDirectory.mockResolvedValue([]);
+
+      await showFilePicker(mockDirHandle);
+
+      // Should remain null
+      expect(appState.previousFileHandle).toBeNull();
+      expect(appState.previousFilename).toBe('');
+    });
   });
 
   describe('hideFilePicker', () => {

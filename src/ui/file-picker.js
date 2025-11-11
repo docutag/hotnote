@@ -11,6 +11,18 @@ import { debounce } from '../utils/helpers.js';
  * @param {FileSystemDirectoryHandle} dirHandle - Directory to show
  */
 export const showFilePicker = async (dirHandle) => {
+  // Save current file state for restoration if user cancels
+  // This happens when navbar gains focus (user interacts with breadcrumb/file picker)
+  if (appState.currentFileHandle) {
+    appState.previousFileHandle = appState.currentFileHandle;
+    appState.previousFilename = appState.currentFilename;
+  }
+
+  // Clear current file to show clean file picker
+  // File will be restored if picker is closed without selection
+  appState.currentFileHandle = null;
+  appState.currentFilename = '';
+
   // Pause file polling while picker is open
   if (window.fileSyncManager) {
     window.fileSyncManager.pause();

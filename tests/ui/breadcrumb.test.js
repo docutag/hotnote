@@ -251,33 +251,6 @@ describe('Breadcrumb', () => {
 
       expect(appState.currentPath).toEqual(originalPath);
     });
-
-    it('should clear current file when navigating to breadcrumb', async () => {
-      appState.currentPath = [{ name: 'src' }, { name: 'components' }];
-      appState.currentFileHandle = createMockFileHandle('test.js');
-      appState.currentFilename = 'test.js';
-      appState.currentDirHandle = createMockDirectoryHandle('components', {});
-
-      await navigateToPathIndex(0, mockCallbacks);
-
-      // File should be cleared when navigating breadcrumb
-      expect(appState.currentFileHandle).toBeNull();
-      expect(appState.currentFilename).toBe('');
-    });
-
-    it('should store previous file state for restoration', async () => {
-      appState.currentPath = [{ name: 'src' }, { name: 'components' }];
-      appState.currentFileHandle = createMockFileHandle('important.js');
-      appState.currentFilename = 'important.js';
-      appState.currentDirHandle = createMockDirectoryHandle('components', {});
-
-      await navigateToPathIndex(0, mockCallbacks);
-
-      // Previous file state should be stored somewhere for restoration
-      // (We'll check this through the restoration behavior in hideFilePicker)
-      expect(appState.previousFileHandle).toBeDefined();
-      expect(appState.previousFilename).toBe('important.js');
-    });
   });
 
   describe('Callback Requirements', () => {
