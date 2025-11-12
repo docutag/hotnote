@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.2](https://github.com/zombar/hotnote.io/compare/v1.19.1...v1.19.2) (2025-11-12)
+
+
+### Bug Fixes
+
+* preserve focus and cursor position when toggling theme ([#85](https://github.com/zombar/hotnote.io/issues/85)) ([85ec9b4](https://github.com/zombar/hotnote.io/commit/85ec9b4402c4c090f133dd4a4de5304c9a2076ea))
+
 ## [1.19.1](https://github.com/zombar/hotnote.io/compare/v1.19.0...v1.19.1) (2025-11-12)
 
 
