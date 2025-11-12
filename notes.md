@@ -14,9 +14,7 @@
 
 * When clicking a breadcrumb with the filepicker closed the breadcrumbs bar should be updated with the new location -> the filename text should be cleared and caret shown -> the file picker should be shown. When clicking a breadcrumb with the file picker open should: update the breadcrumb to the new location -> the filename should still be cleared and caret showing -> the file picker should be updated to the new location.
 
-* <br />
-
-  is the reload button broken for the new version popup?
+* is the reload button broken for the new version popup?
 
 * need to replace intellisense functionality somehow (1B local inferencing?)
 

@@ -152,7 +152,7 @@ async function reinitializeEditorWithTheme() {
   const currentContent =
     typeof getEditorContent !== 'undefined'
       ? // eslint-disable-next-line no-undef
-        getEditorContent()
+        getEditorContent() || ''
       : '';
 
   // Save editor state before destroying

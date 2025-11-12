@@ -28,6 +28,7 @@ import {
   openFileFromPicker,
   newFile,
   setupFilePickerClickAway,
+  quickFileCreate,
 } from './src/ui/file-picker.js';
 import { initKeyboardManager, updateEditorBlurState } from './src/ui/keyboard-manager.js';
 import { initThemeManager, toggleTheme } from './src/ui/theme-manager.js';
@@ -231,6 +232,12 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
 
 // Expose initEditor for file-picker module
 window.initEditor = initEditor;
+// Expose getEditorContent for theme-manager module
+window.getEditorContent = getEditorContent;
+// Expose file-picker functions for keyboard-manager and prompt-manager modules
+window.showFilePicker = showFilePicker;
+window.hideFilePicker = hideFilePicker;
+window.quickFileCreate = quickFileCreate;
 
 // Initialize CodeMirror editor
 const initCodeMirrorEditor = async (
@@ -1348,12 +1355,21 @@ document.getElementById('folder-up-btn').addEventListener('click', async () => {
   });
 });
 document.getElementById('autosave-checkbox').addEventListener('change', (e) => {
+  appState.focusManager?.saveFocusState();
   autosaveManager.toggle(e.target.checked);
   animateAutosaveLabel(e.target.checked);
+  // Restore focus after checkbox interaction
+  setTimeout(() => {
+    appState.focusManager?.focusEditor({ reason: 'autosave-toggle' });
+  }, 0);
 });
-document.getElementById('rich-toggle-btn').addEventListener('click', () => {
+document.getElementById('rich-toggle-btn').addEventListener('click', async () => {
   appState.focusManager.saveFocusState();
-  toggleRichMode();
+  await toggleRichMode();
+  // Restore focus after mode toggle
+  setTimeout(() => {
+    appState.focusManager?.focusEditor({ reason: 'rich-mode-toggle' });
+  }, 0);
 });
 document.getElementById('dark-mode-toggle').addEventListener('click', () => {
   appState.focusManager.saveFocusState();

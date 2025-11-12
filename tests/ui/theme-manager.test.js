@@ -213,6 +213,70 @@ describe('Theme Manager', () => {
 
       await expect(toggleTheme()).resolves.not.toThrow();
     });
+
+    it('should preserve editor content when switching theme - REGRESSION TEST', async () => {
+      const originalContent = 'This is my important document content!';
+      globalThis.getEditorContent = vi.fn(() => originalContent);
+      appState.editorView = {
+        scrollDOM: { scrollTop: 0, scrollLeft: 0 },
+      };
+
+      await toggleTheme();
+
+      expect(globalThis.getEditorContent).toHaveBeenCalled();
+      expect(globalThis.initEditor).toHaveBeenCalledWith(originalContent, 'test.md');
+    });
+
+    it('should not clear editor content if getEditorContent returns undefined', async () => {
+      globalThis.getEditorContent = vi.fn(() => undefined);
+      appState.editorView = {
+        scrollDOM: { scrollTop: 0, scrollLeft: 0 },
+      };
+
+      await toggleTheme();
+
+      // Should pass empty string as fallback, not undefined
+      expect(globalThis.initEditor).toHaveBeenCalledWith('', 'test.md');
+    });
+
+    it('should handle multi-line content correctly', async () => {
+      const multiLineContent = `# Title
+
+This is a paragraph.
+
+- List item 1
+- List item 2
+
+\`\`\`javascript
+console.log('code');
+\`\`\``;
+      globalThis.getEditorContent = vi.fn(() => multiLineContent);
+      appState.editorView = {
+        scrollDOM: { scrollTop: 0, scrollLeft: 0 },
+      };
+
+      await toggleTheme();
+
+      expect(globalThis.initEditor).toHaveBeenCalledWith(multiLineContent, 'test.md');
+    });
+
+    it('should preserve WYSIWYG content when switching theme', async () => {
+      const wysiwygContent = '<h1>Title</h1><p>Content in WYSIWYG mode</p>';
+      globalThis.getEditorContent = vi.fn(() => wysiwygContent);
+      appState.editorManager = {
+        getScrollPosition: vi.fn(() => 0),
+        setScrollPosition: vi.fn(),
+        getMode: vi.fn(() => 'wysiwyg'),
+      };
+      appState.focusManager = {
+        focusEditor: vi.fn(),
+      };
+
+      await toggleTheme();
+
+      expect(globalThis.getEditorContent).toHaveBeenCalled();
+      expect(globalThis.initEditor).toHaveBeenCalledWith(wysiwygContent, 'test.md');
+    });
   });
 
   describe('getCurrentTheme', () => {
