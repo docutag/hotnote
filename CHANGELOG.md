@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.20.3](https://github.com/zombar/hotnote.io/compare/v1.20.2...v1.20.3) (2025-11-13)
+
+
+### Bug Fixes
+
+* disable context toolbar in gitreader mode ([#95](https://github.com/zombar/hotnote.io/issues/95)) ([92d2828](https://github.com/zombar/hotnote.io/commit/92d28281eec44cc6dd6eed8f6dcbc9ed22e08012))
+* slightly better caret sync between code and prose ([#98](https://github.com/zombar/hotnote.io/issues/98)) ([4dfa84f](https://github.com/zombar/hotnote.io/commit/4dfa84f289fb351ab954d9ab06de41b7ebe71f74))
+* trash broken after refactor ([#97](https://github.com/zombar/hotnote.io/issues/97)) ([77995ed](https://github.com/zombar/hotnote.io/commit/77995ed8a77f381bbdd0bbe78874a28a26483e96))
+
 ## [1.20.2](https://github.com/zombar/hotnote.io/compare/v1.20.1...v1.20.2) (2025-11-13)
 
 
