@@ -47,7 +47,14 @@ import {
   createEmptySession,
   createDebouncedSaveEditorState,
   initSessionManager,
+  addCommentToSession,
+  updateCommentInSession,
+  deleteCommentFromSession,
 } from './src/storage/session-manager.js';
+import { getUserId, getUserDisplayName } from './src/storage/user-manager.js';
+import { createAnchor, findAnchorPosition } from './src/utils/text-anchor.js';
+import { CommentToolbar } from './src/ui/comment-toolbar.js';
+import { CommentPanel } from './src/ui/comment-panel.js';
 import {
   EditorView,
   keymap,
@@ -285,6 +292,11 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
       }, 50);
     });
   }
+
+  // Refresh comment decorations after editor is ready
+  setTimeout(() => {
+    refreshCommentDecorations();
+  }, 150);
 };
 
 // Expose initEditor for file-picker module
@@ -496,6 +508,11 @@ const toggleRichMode = async () => {
   updateRichToggleButton();
   updateTOC(); // Update TOC after mode change
   await updateSuggestedLinks(); // Update suggested links after mode change
+
+  // Refresh comment decorations after mode change
+  setTimeout(() => {
+    refreshCommentDecorations();
+  }, 100);
 };
 
 // Build hierarchical structure from flat headings array
@@ -941,6 +958,9 @@ const openFolder = async () => {
       console.log('Session file loaded:', sessionData);
     }
 
+    // Load comments from session
+    await loadCommentsFromSession();
+
     // Track if file was successfully restored
     let fileRestored = false;
 
@@ -1288,6 +1308,304 @@ const fileSyncManager = createFileSyncManager({
     // Errors are already logged by FileSyncManager
   },
 });
+
+// Comment system variables
+let commentToolbar = null;
+let commentPanel = null;
+
+// Initialize comment system
+function initCommentSystem() {
+  // Get editor container
+  const editorContainer = document.getElementById('editor');
+  if (!editorContainer) {
+    console.warn('[Comments] Editor container not found');
+    return;
+  }
+
+  // Create toolbar and panel
+  commentToolbar = new CommentToolbar(editorContainer, handleAddComment);
+  commentPanel = new CommentPanel(document.body, handleReply, handleResolve, handleDelete);
+
+  // Link toolbar and panel so they can coordinate visibility
+  commentPanel.setToolbar(commentToolbar);
+  commentToolbar.setPanel(commentPanel);
+
+  // Setup selection listener
+  setupSelectionListener();
+
+  console.log('[Comments] Comment system initialized');
+}
+
+// Setup selection listener for showing comment toolbar
+function setupSelectionListener() {
+  let selectionTimeout = null;
+
+  const handleSelectionChange = () => {
+    // Debounce selection changes
+    clearTimeout(selectionTimeout);
+    selectionTimeout = setTimeout(() => {
+      const editor = appState.editorManager || appState.editorView;
+      if (!editor) {
+        console.debug('[Comments] No editor available');
+        return;
+      }
+      if (!commentToolbar) {
+        console.warn('[Comments] Comment toolbar not initialized');
+        return;
+      }
+
+      // Check if editor has getSelection method
+      if (!editor.getSelection) {
+        console.warn('[Comments] Editor missing getSelection method');
+        return;
+      }
+
+      const selection = editor.getSelection();
+      console.log('[Comments] Selection detected:', selection);
+
+      if (selection && selection.text && selection.text.trim().length > 0) {
+        // Show toolbar near selection
+        try {
+          const windowSelection = window.getSelection();
+          if (windowSelection && windowSelection.rangeCount > 0) {
+            const rect = windowSelection.getRangeAt(0).getBoundingClientRect();
+            console.log('[Comments] Showing toolbar at', rect.left, rect.bottom + 5);
+            commentToolbar.show(rect.left, rect.bottom + 5, selection);
+          } else {
+            console.debug('[Comments] No window selection range');
+          }
+        } catch (e) {
+          // Selection might not be available
+          console.error('[Comments] Could not show toolbar:', e);
+        }
+      } else {
+        commentToolbar.hide();
+      }
+    }, 100);
+  };
+
+  document.addEventListener('mouseup', handleSelectionChange);
+  document.addEventListener('keyup', handleSelectionChange);
+}
+
+// Load comments from session file
+async function loadCommentsFromSession() {
+  if (!appState.rootDirHandle) return;
+
+  try {
+    const sessionData = await loadSessionFile(appState.rootDirHandle);
+    if (sessionData && sessionData.comments) {
+      appState.setComments(sessionData.comments);
+      console.log(`[Comments] Loaded ${sessionData.comments.length} comments from session`);
+      refreshCommentDecorations();
+    }
+  } catch (err) {
+    console.error('[Comments] Error loading comments:', err);
+  }
+}
+
+// Refresh comment decorations in editor
+function refreshCommentDecorations() {
+  const editor = appState.editorManager?.currentEditor || appState.editorView;
+  if (!editor) return;
+
+  const currentFile = appState.currentFilename;
+  const fileComments = appState.getCommentsForFile(currentFile);
+
+  // Convert anchors to positions
+  const doc = editor.getDocumentText ? editor.getDocumentText() : editor.state.doc.toString();
+  const commentsWithPositions = fileComments
+    .map((comment) => {
+      const pos = findAnchorPosition(doc, comment.anchor);
+      if (pos) {
+        return {
+          id: comment.id,
+          position: pos,
+          resolved: comment.resolved,
+        };
+      }
+      return null;
+    })
+    .filter(Boolean);
+
+  // Apply decorations if editor supports it
+  const activeCommentId = appState.getActiveCommentId();
+  if (editor.applyCommentDecorations) {
+    editor.applyCommentDecorations(commentsWithPositions, activeCommentId, handleCommentClick);
+  }
+
+  console.log(`[Comments] Applied ${commentsWithPositions.length} decorations for ${currentFile}`);
+}
+
+// Handle adding a new comment
+async function handleAddComment(selection) {
+  const editor = appState.editorManager || appState.editorView;
+  if (!editor) return;
+
+  const doc = editor.getDocumentText ? editor.getDocumentText() : editor.state.doc.toString();
+  const anchor = createAnchor(doc, selection.from, selection.to);
+
+  // Create comment with empty thread - user will add first message via panel
+  const comment = {
+    id: crypto.randomUUID(),
+    fileRelativePath: getRelativeFilePath(),
+    userId: getUserId(),
+    anchor,
+    fallbackPosition: {
+      from: { line: 0, col: selection.from },
+      to: { line: 0, col: selection.to },
+    },
+    timestamp: Date.now(),
+    resolved: false,
+    thread: [], // Empty - will be filled via reply form
+  };
+
+  // Add to app state (temporarily, will save after first message)
+  appState.addComment(comment);
+  appState.setActiveCommentId(comment.id);
+
+  // Hide toolbar
+  if (commentToolbar) {
+    commentToolbar.hide();
+  }
+
+  // Show panel to let user add first comment
+  try {
+    const windowSelection = window.getSelection();
+    if (windowSelection && windowSelection.rangeCount > 0) {
+      const rect = windowSelection.getRangeAt(0).getBoundingClientRect();
+      // Position panel at bottom-right of selection
+      commentPanel.show(comment, rect.right, rect.bottom);
+    }
+  } catch (e) {
+    console.error('[Comments] Error showing panel:', e);
+  }
+
+  // Refresh decorations to show new comment highlight
+  refreshCommentDecorations();
+
+  console.log('[Comments] Created new comment (awaiting first message):', comment.id);
+}
+
+// Handle comment click
+function handleCommentClick(commentId) {
+  const comment = appState.getComments().find((c) => c.id === commentId);
+  if (!comment) return;
+
+  // Set as active
+  appState.setActiveCommentId(commentId);
+
+  // Show panel near comment
+  try {
+    const commentElement = document.querySelector(`[data-comment-id="${commentId}"]`);
+    if (commentElement) {
+      const rect = commentElement.getBoundingClientRect();
+      // Position panel at bottom-right of comment highlight
+      commentPanel.show(comment, rect.right, rect.bottom);
+    }
+  } catch (e) {
+    console.error('[Comments] Error showing panel:', e);
+  }
+
+  // Refresh decorations to highlight active comment
+  refreshCommentDecorations();
+
+  console.log('[Comments] Clicked comment:', commentId);
+}
+
+// Handle reply to comment
+async function handleReply(commentId, text) {
+  const comment = appState.getComments().find((c) => c.id === commentId);
+  if (!comment) return;
+
+  const reply = {
+    userId: getUserId(),
+    userName: getUserDisplayName(),
+    text: text.trim(),
+    timestamp: Date.now(),
+  };
+
+  comment.thread.push(reply);
+
+  const isFirstMessage = comment.thread.length === 1;
+
+  // Save to session
+  try {
+    const sessionData = await loadSessionFile(appState.rootDirHandle);
+    if (sessionData) {
+      if (isFirstMessage) {
+        // This is the first message - add the whole comment to session
+        addCommentToSession(sessionData, comment);
+      } else {
+        // This is a reply - update existing comment
+        updateCommentInSession(sessionData, commentId, { thread: comment.thread });
+      }
+      await saveSessionFile(appState.rootDirHandle, sessionData);
+    }
+  } catch (err) {
+    console.error('[Comments] Error saving reply:', err);
+  }
+
+  // Update panel
+  if (commentPanel) {
+    commentPanel.update(comment);
+  }
+
+  // Refresh decorations (in case this was the first message)
+  if (isFirstMessage) {
+    refreshCommentDecorations();
+  }
+
+  console.log(`[Comments] Added ${isFirstMessage ? 'first message' : 'reply'} to:`, commentId);
+}
+
+// Handle resolve comment
+async function handleResolve(commentId) {
+  const comment = appState.getComments().find((c) => c.id === commentId);
+  if (!comment) return;
+
+  comment.resolved = true;
+
+  // Save to session
+  try {
+    const sessionData = await loadSessionFile(appState.rootDirHandle);
+    if (sessionData) {
+      updateCommentInSession(sessionData, commentId, { resolved: true });
+      await saveSessionFile(appState.rootDirHandle, sessionData);
+    }
+  } catch (err) {
+    console.error('[Comments] Error resolving comment:', err);
+  }
+
+  // Update panel and decorations
+  if (commentPanel) {
+    commentPanel.update(comment);
+  }
+  refreshCommentDecorations();
+
+  console.log('[Comments] Resolved comment:', commentId);
+}
+
+// Handle delete comment
+async function handleDelete(commentId) {
+  appState.deleteComment(commentId);
+
+  // Save to session
+  try {
+    const sessionData = await loadSessionFile(appState.rootDirHandle);
+    if (sessionData) {
+      deleteCommentFromSession(sessionData, commentId);
+      await saveSessionFile(appState.rootDirHandle, sessionData);
+    }
+  } catch (err) {
+    console.error('[Comments] Error deleting comment:', err);
+  }
+
+  // Refresh decorations
+  refreshCommentDecorations();
+
+  console.log('[Comments] Deleted comment:', commentId);
+}
 
 // Show delete confirmation inline
 
@@ -1786,6 +2104,9 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   updateBreadcrumb();
   updateNavigationButtons();
   updateNewButtonState();
+
+  // Initialize comment system
+  initCommentSystem();
 
   // Initialize file picker resize
   initFilePickerResize();
