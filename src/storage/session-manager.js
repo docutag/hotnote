@@ -167,3 +167,82 @@ export async function saveEditorStateToSession(getRelativeFilePathFn) {
 export function createDebouncedSaveEditorState(getRelativeFilePathFn) {
   return debounce(() => saveEditorStateToSession(getRelativeFilePathFn), 2000);
 }
+
+/**
+ * Add a comment to the session
+ * @param {Object} sessionData - Session data object
+ * @param {Object} comment - Comment object to add
+ * @returns {boolean} True if added successfully, false if comment ID already exists
+ */
+export function addCommentToSession(sessionData, comment) {
+  // Initialize comments array if it doesn't exist
+  if (!sessionData.comments) {
+    sessionData.comments = [];
+  }
+
+  // Check if comment with this ID already exists
+  const existingComment = sessionData.comments.find((c) => c.id === comment.id);
+  if (existingComment) {
+    return false;
+  }
+
+  // Add the comment
+  sessionData.comments.push(comment);
+  return true;
+}
+
+/**
+ * Update a comment in the session
+ * @param {Object} sessionData - Session data object
+ * @param {string} commentId - ID of the comment to update
+ * @param {Object} updates - Properties to update
+ * @returns {boolean} True if updated successfully, false if comment not found
+ */
+export function updateCommentInSession(sessionData, commentId, updates) {
+  if (!sessionData.comments) {
+    return false;
+  }
+
+  const comment = sessionData.comments.find((c) => c.id === commentId);
+  if (!comment) {
+    return false;
+  }
+
+  // Apply updates
+  Object.assign(comment, updates);
+  return true;
+}
+
+/**
+ * Delete a comment from the session
+ * @param {Object} sessionData - Session data object
+ * @param {string} commentId - ID of the comment to delete
+ * @returns {boolean} True if deleted successfully, false if comment not found
+ */
+export function deleteCommentFromSession(sessionData, commentId) {
+  if (!sessionData.comments) {
+    return false;
+  }
+
+  const index = sessionData.comments.findIndex((c) => c.id === commentId);
+  if (index === -1) {
+    return false;
+  }
+
+  sessionData.comments.splice(index, 1);
+  return true;
+}
+
+/**
+ * Get all comments for a specific file
+ * @param {Object} sessionData - Session data object
+ * @param {string} filePath - Relative file path
+ * @returns {Array} Array of comments for the file
+ */
+export function getCommentsForFile(sessionData, filePath) {
+  if (!sessionData.comments) {
+    return [];
+  }
+
+  return sessionData.comments.filter((c) => c.fileRelativePath === filePath);
+}

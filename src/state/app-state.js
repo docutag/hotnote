@@ -51,6 +51,11 @@ class AppState {
     // Theme state
     this.needsEditorReinit = false; // Flag to reinit editor after theme change when file picker closes
     this.pendingCursorRestore = null; // Cursor position to restore after theme toggle
+
+    // Comment system state
+    this.comments = []; // All comments for current directory
+    this.activeCommentId = null; // Currently selected/open comment
+    this.commentPanelVisible = false; // Whether the comment panel is open
   }
 
   // Getters
@@ -250,6 +255,56 @@ class AppState {
     this.githubRepo = null;
     this.githubAdapter = null;
     this.remoteSource = null;
+  }
+
+  // Comment system methods
+  getComments() {
+    return this.comments;
+  }
+
+  setComments(comments) {
+    this.comments = comments;
+  }
+
+  addComment(comment) {
+    this.comments.push(comment);
+  }
+
+  updateComment(commentId, updates) {
+    const comment = this.comments.find((c) => c.id === commentId);
+    if (comment) {
+      Object.assign(comment, updates);
+    }
+  }
+
+  deleteComment(commentId) {
+    this.comments = this.comments.filter((c) => c.id !== commentId);
+  }
+
+  getActiveCommentId() {
+    return this.activeCommentId;
+  }
+
+  setActiveCommentId(commentId) {
+    this.activeCommentId = commentId;
+  }
+
+  isCommentPanelVisible() {
+    return this.commentPanelVisible;
+  }
+
+  setCommentPanelVisible(visible) {
+    this.commentPanelVisible = visible;
+  }
+
+  getCommentsForFile(filePath) {
+    return this.comments.filter((c) => c.fileRelativePath === filePath);
+  }
+
+  resetCommentState() {
+    this.comments = [];
+    this.activeCommentId = null;
+    this.commentPanelVisible = false;
   }
 }
 

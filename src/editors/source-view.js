@@ -9,8 +9,9 @@ import {
   crosshairCursor,
   highlightActiveLine,
   keymap,
+  Decoration,
 } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
+import { EditorState, StateField, StateEffect } from '@codemirror/state';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import {
@@ -72,6 +73,69 @@ const brandHighlightStyleDark = HighlightStyle.define([
   { tag: tags.constant(tags.variableName), color: '#c8bce8' }, // lighter muted purple
 ]);
 
+// Comment decoration effects
+const addCommentDecoration = StateEffect.define();
+const removeCommentDecoration = StateEffect.define();
+const clearCommentDecorations = StateEffect.define();
+const setActiveComment = StateEffect.define();
+
+// Comment decoration state field
+const commentDecorationField = StateField.define({
+  create() {
+    return { decorations: Decoration.none, activeCommentId: null, onCommentClick: null };
+  },
+  update(state, tr) {
+    let { decorations, activeCommentId, onCommentClick } = state;
+    decorations = decorations.map(tr.changes);
+
+    for (const effect of tr.effects) {
+      if (effect.is(addCommentDecoration)) {
+        const { commentId, from, to, isActive } = effect.value;
+        const className = isActive ? 'comment-highlight active' : 'comment-highlight';
+        const deco = Decoration.mark({
+          class: className,
+          attributes: { 'data-comment-id': commentId },
+        }).range(from, to);
+        decorations = decorations.update({ add: [deco] });
+      } else if (effect.is(removeCommentDecoration)) {
+        const commentId = effect.value;
+        decorations = decorations.update({
+          filter: (from, to, value) => {
+            return value.spec.attributes?.['data-comment-id'] !== commentId;
+          },
+        });
+      } else if (effect.is(clearCommentDecorations)) {
+        decorations = Decoration.none;
+      } else if (effect.is(setActiveComment)) {
+        activeCommentId = effect.value.commentId;
+        onCommentClick = effect.value.onCommentClick;
+      }
+    }
+
+    return { decorations, activeCommentId, onCommentClick };
+  },
+  provide: (f) => EditorView.decorations.from(f, (state) => state.decorations),
+});
+
+// Handle clicks on comment decorations
+function commentClickHandler(_view) {
+  return EditorView.domEventHandlers({
+    click: (event, view) => {
+      const target = event.target;
+      if (target.classList.contains('comment-highlight')) {
+        const commentId = target.getAttribute('data-comment-id');
+        const field = view.state.field(commentDecorationField);
+        if (commentId && field.onCommentClick) {
+          field.onCommentClick(commentId);
+          event.preventDefault();
+          return true;
+        }
+      }
+      return false;
+    },
+  });
+}
+
 /**
  * Source Editor View using CodeMirror 6
  * Provides a consistent interface for the editor manager
@@ -107,6 +171,8 @@ export class SourceView {
       crosshairCursor(),
       highlightActiveLine(),
       highlightSelectionMatches(),
+      commentDecorationField,
+      commentClickHandler(),
       markdown({
         base: markdownLanguage,
       }),
@@ -227,5 +293,129 @@ export class SourceView {
    */
   isActive() {
     return this.view !== null;
+  }
+
+  /**
+   * Get current text selection
+   * @returns {{from: number, to: number, text: string}|null} Selection object or null if no selection
+   */
+  getSelection() {
+    if (!this.view) {
+      return null;
+    }
+
+    const state = this.view.state;
+    const selection = state.selection.main;
+
+    // If there's no selection (from === to), return null
+    if (selection.from === selection.to) {
+      return null;
+    }
+
+    const text = state.doc.sliceString(selection.from, selection.to);
+
+    return {
+      from: selection.from,
+      to: selection.to,
+      text: text,
+    };
+  }
+
+  /**
+   * Get full document text
+   * @returns {string} Document text
+   */
+  getDocumentText() {
+    if (!this.view) {
+      return '';
+    }
+
+    return this.view.state.doc.toString();
+  }
+
+  /**
+   * Add a comment decoration to the editor
+   * @param {string} commentId - Comment ID
+   * @param {number} from - Start position
+   * @param {number} to - End position
+   * @param {boolean} isActive - Whether this is the active comment
+   */
+  addCommentDecoration(commentId, from, to, isActive = false) {
+    if (!this.view) return;
+
+    this.view.dispatch({
+      effects: addCommentDecoration.of({ commentId, from, to, isActive }),
+    });
+  }
+
+  /**
+   * Remove a comment decoration from the editor
+   * @param {string} commentId - Comment ID
+   */
+  removeCommentDecoration(commentId) {
+    if (!this.view) return;
+
+    this.view.dispatch({
+      effects: removeCommentDecoration.of(commentId),
+    });
+  }
+
+  /**
+   * Clear all comment decorations
+   */
+  clearCommentDecorations() {
+    if (!this.view) return;
+
+    this.view.dispatch({
+      effects: clearCommentDecorations.of(null),
+    });
+  }
+
+  /**
+   * Set the active comment (for highlighting)
+   * @param {string} commentId - Comment ID
+   * @param {function} onCommentClick - Click handler for comments
+   */
+  setActiveComment(commentId, onCommentClick) {
+    if (!this.view) return;
+
+    this.view.dispatch({
+      effects: setActiveComment.of({ commentId, onCommentClick }),
+    });
+  }
+
+  /**
+   * Apply multiple comment decorations at once
+   * @param {Array} comments - Array of comments with positions
+   * @param {string} activeCommentId - ID of active comment
+   * @param {function} onCommentClick - Click handler
+   */
+  applyCommentDecorations(comments, activeCommentId = null, onCommentClick = null) {
+    if (!this.view) return;
+
+    const effects = [];
+
+    // Clear existing decorations
+    effects.push(clearCommentDecorations.of(null));
+
+    // Add new decorations
+    for (const comment of comments) {
+      const isActive = comment.id === activeCommentId;
+      effects.push(
+        addCommentDecoration.of({
+          commentId: comment.id,
+          from: comment.position.from,
+          to: comment.position.to,
+          isActive,
+        })
+      );
+    }
+
+    // Set active comment and click handler
+    if (activeCommentId || onCommentClick) {
+      effects.push(setActiveComment.of({ commentId: activeCommentId, onCommentClick }));
+    }
+
+    this.view.dispatch({ effects });
   }
 }

@@ -25,6 +25,12 @@ vi.mock('../src/editors/source-view.js', () => ({
     isActive() {
       return true;
     }
+    getSelection() {
+      return { from: 10, to: 20, text: 'selected' };
+    }
+    getDocumentText() {
+      return this.content;
+    }
   },
 }));
 
@@ -58,6 +64,12 @@ vi.mock('../src/editors/wysiwyg-view.js', () => ({
       return [];
     }
     scrollToPosition() {}
+    getSelection() {
+      return { from: 5, to: 15, text: 'wysiwyg text' };
+    }
+    getDocumentText() {
+      return this.content;
+    }
   },
 }));
 
@@ -251,6 +263,82 @@ describe('EditorManager', () => {
       manager.currentEditor = null;
 
       expect(() => manager.focus()).not.toThrow();
+    });
+  });
+
+  describe('Selection API', () => {
+    it('should get selection from source mode', async () => {
+      const manager = new EditorManager(container, 'source', 'test content', onChange);
+      await manager.ready();
+
+      const selection = manager.getSelection();
+
+      expect(selection).toEqual({ from: 10, to: 20, text: 'selected' });
+    });
+
+    it('should get selection from wysiwyg mode', async () => {
+      const manager = new EditorManager(container, 'wysiwyg', 'test content', onChange);
+      await manager.ready();
+
+      const selection = manager.getSelection();
+
+      expect(selection).toEqual({ from: 5, to: 15, text: 'wysiwyg text' });
+    });
+
+    it('should return null selection when no editor', async () => {
+      const manager = new EditorManager(container, 'source', 'content', onChange);
+      manager.currentEditor = null;
+
+      const selection = manager.getSelection();
+
+      expect(selection).toBeNull();
+    });
+
+    it('should get document text from source mode', async () => {
+      const manager = new EditorManager(container, 'source', 'full document text', onChange);
+      await manager.ready();
+
+      const text = manager.getDocumentText();
+
+      expect(text).toBe('full document text');
+    });
+
+    it('should get document text from wysiwyg mode', async () => {
+      const manager = new EditorManager(container, 'wysiwyg', 'wysiwyg document', onChange);
+      await manager.ready();
+
+      const text = manager.getDocumentText();
+
+      expect(text).toBe('wysiwyg document');
+    });
+
+    it('should return empty string for document text when no editor', async () => {
+      const manager = new EditorManager(container, 'source', 'content', onChange);
+      manager.currentEditor = null;
+
+      const text = manager.getDocumentText();
+
+      expect(text).toBe('');
+    });
+
+    it('should call underlying editor getSelection', async () => {
+      const manager = new EditorManager(container, 'source', 'content', onChange);
+      await manager.ready();
+
+      const spy = vi.spyOn(manager.currentEditor, 'getSelection');
+      manager.getSelection();
+
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('should call underlying editor getDocumentText', async () => {
+      const manager = new EditorManager(container, 'source', 'content', onChange);
+      await manager.ready();
+
+      const spy = vi.spyOn(manager.currentEditor, 'getDocumentText');
+      manager.getDocumentText();
+
+      expect(spy).toHaveBeenCalled();
     });
   });
 });

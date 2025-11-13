@@ -198,6 +198,28 @@ export class EditorManager {
   }
 
   /**
+   * Get current text selection
+   * @returns {{from: number, to: number, text: string}|null} Selection object or null if no selection
+   */
+  getSelection() {
+    if (!this.currentEditor || !this.currentEditor.getSelection) {
+      return null;
+    }
+    return this.currentEditor.getSelection();
+  }
+
+  /**
+   * Get full document text
+   * @returns {string} Document text
+   */
+  getDocumentText() {
+    if (!this.currentEditor || !this.currentEditor.getDocumentText) {
+      return '';
+    }
+    return this.currentEditor.getDocumentText();
+  }
+
+  /**
    * Get the currently active editor instance
    */
   getActiveEditor() {

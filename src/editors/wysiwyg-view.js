@@ -4,7 +4,96 @@ import { nord } from '@milkdown/theme-nord';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { history } from '@milkdown/plugin-history';
 import { gfm } from '@milkdown/preset-gfm';
-import { TextSelection } from '@milkdown/prose/state';
+import { $prose } from '@milkdown/utils';
+import { TextSelection, Plugin, PluginKey } from '@milkdown/prose/state';
+import { Decoration, DecorationSet } from '@milkdown/prose/view';
+
+// Plugin key for comment decorations
+const commentDecorationKey = new PluginKey('commentDecorations');
+
+// Create comment decoration plugin factory
+function createCommentDecorationPlugin() {
+  let commentDecorations = [];
+  let activeCommentId = null;
+  let onCommentClickHandler = null;
+
+  return $prose(() => {
+    return new Plugin({
+      key: commentDecorationKey,
+      state: {
+        init() {
+          return DecorationSet.empty;
+        },
+        apply(tr, set) {
+          // Map decorations through document changes
+          set = set.map(tr.mapping, tr.doc);
+
+          // Check for comment decoration meta updates
+          const meta = tr.getMeta(commentDecorationKey);
+          if (meta) {
+            if (meta.action === 'add') {
+              commentDecorations = meta.comments;
+              activeCommentId = meta.activeCommentId;
+              onCommentClickHandler = meta.onCommentClick;
+              return createDecorationSet(tr.doc, commentDecorations, activeCommentId);
+            } else if (meta.action === 'clear') {
+              commentDecorations = [];
+              activeCommentId = null;
+              return DecorationSet.empty;
+            }
+          }
+
+          return set;
+        },
+      },
+      props: {
+        decorations(state) {
+          return this.getState(state);
+        },
+        handleDOMEvents: {
+          click(view, event) {
+            const target = event.target;
+            if (target.classList?.contains('comment-highlight')) {
+              const commentId = target.getAttribute('data-comment-id');
+              if (commentId && onCommentClickHandler) {
+                onCommentClickHandler(commentId);
+                event.preventDefault();
+                return true;
+              }
+            }
+            return false;
+          },
+        },
+      },
+    });
+  });
+}
+
+// Helper function to create decoration set from comments
+function createDecorationSet(doc, comments, activeCommentId) {
+  const decorations = [];
+
+  for (const comment of comments) {
+    const { id, position } = comment;
+    const isActive = id === activeCommentId;
+    const className = isActive ? 'comment-highlight active' : 'comment-highlight';
+
+    // Ensure positions are within document bounds
+    const from = Math.max(0, Math.min(position.from, doc.content.size));
+    const to = Math.max(from, Math.min(position.to, doc.content.size));
+
+    if (from < to) {
+      decorations.push(
+        Decoration.inline(from, to, {
+          class: className,
+          'data-comment-id': id,
+        })
+      );
+    }
+  }
+
+  return DecorationSet.create(doc, decorations);
+}
 
 /**
  * WYSIWYG Editor View using Milkdown (ProseMirror wrapper)
@@ -42,6 +131,7 @@ export class WYSIWYGView {
         .use(gfm)
         .use(listener)
         .use(history)
+        .use(createCommentDecorationPlugin())
         .create();
 
       // Set readonly mode using ProseMirror's editable property
@@ -378,5 +468,151 @@ export class WYSIWYGView {
     } catch (error) {
       console.error('[WYSIWYGView] Error scrolling to position:', error);
     }
+  }
+
+  /**
+   * Get current text selection
+   * @returns {{from: number, to: number, text: string}|null} Selection object or null if no selection
+   */
+  getSelection() {
+    if (!this.editor) {
+      return null;
+    }
+
+    try {
+      return this.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const { state } = view;
+        const { from, to } = state.selection;
+
+        // If there's no selection, return null
+        if (from === to) {
+          return null;
+        }
+
+        const text = state.doc.textBetween(from, to, '\n');
+
+        return {
+          from,
+          to,
+          text,
+        };
+      });
+    } catch (error) {
+      console.error('[WYSIWYGView] Error getting selection:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get full document text
+   * @returns {string} Document text
+   */
+  getDocumentText() {
+    if (!this.editor) {
+      return '';
+    }
+
+    try {
+      return this.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const { state } = view;
+        return state.doc.textContent;
+      });
+    } catch (error) {
+      console.error('[WYSIWYGView] Error getting document text:', error);
+      return '';
+    }
+  }
+
+  /**
+   * Apply comment decorations to the editor
+   * @param {Array} comments - Array of comments with positions
+   * @param {string} activeCommentId - ID of active comment
+   * @param {function} onCommentClick - Click handler
+   */
+  applyCommentDecorations(comments, activeCommentId = null, onCommentClick = null) {
+    if (!this.editor) return;
+
+    try {
+      this.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const tr = view.state.tr;
+
+        tr.setMeta(commentDecorationKey, {
+          action: 'add',
+          comments,
+          activeCommentId,
+          onCommentClick,
+        });
+
+        view.dispatch(tr);
+      });
+    } catch (error) {
+      console.error('[WYSIWYGView] Error applying comment decorations:', error);
+    }
+  }
+
+  /**
+   * Clear all comment decorations
+   */
+  clearCommentDecorations() {
+    if (!this.editor) return;
+
+    try {
+      this.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const tr = view.state.tr;
+
+        tr.setMeta(commentDecorationKey, {
+          action: 'clear',
+        });
+
+        view.dispatch(tr);
+      });
+    } catch (error) {
+      console.error('[WYSIWYGView] Error clearing comment decorations:', error);
+    }
+  }
+
+  /**
+   * Add a single comment decoration
+   * @param {string} commentId - Comment ID
+   * @param {number} from - Start position
+   * @param {number} to - End position
+   * @param {boolean} isActive - Whether this is the active comment
+   */
+  addCommentDecoration(commentId, from, to, isActive = false) {
+    // For simplicity, we'll use applyCommentDecorations with a single comment
+    this.applyCommentDecorations(
+      [{ id: commentId, position: { from, to } }],
+      isActive ? commentId : null
+    );
+  }
+
+  /**
+   * Remove a comment decoration
+   * @param {string} _commentId - Comment ID to remove
+   */
+  removeCommentDecoration(_commentId) {
+    // To remove a specific comment, we'd need to track all comments
+    // For now, this is a placeholder that clears all
+    // In a full implementation, you'd maintain state and filter out the comment
+    console.warn(
+      '[WYSIWYGView] removeCommentDecoration not fully implemented - use applyCommentDecorations instead'
+    );
+  }
+
+  /**
+   * Set the active comment
+   * @param {string} _commentId - Comment ID
+   * @param {function} _onCommentClick - Click handler
+   */
+  setActiveComment(_commentId, _onCommentClick) {
+    // Re-apply decorations with new active comment
+    // In a full implementation, you'd track the comments list
+    console.warn(
+      '[WYSIWYGView] setActiveComment - use applyCommentDecorations with full comment list'
+    );
   }
 }

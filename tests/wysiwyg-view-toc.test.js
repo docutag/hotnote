@@ -46,6 +46,16 @@ vi.mock('@milkdown/prose/state', () => ({
   TextSelection: {
     create: vi.fn((doc, pos) => ({ from: pos, to: pos })),
   },
+  Plugin: class MockPlugin {
+    constructor(spec) {
+      this.spec = spec;
+    }
+  },
+  PluginKey: class MockPluginKey {
+    constructor(name) {
+      this.name = name;
+    }
+  },
 }));
 
 let mockEditor;
