@@ -1163,10 +1163,22 @@ window.openFolder = openFolder;
 const trashManager = createTrashManager({
   onFileDeleted: (filename) => {
     // Handle file deleted - close if currently open
-    if (appState.currentFileHandle && appState.currentFileHandle.name === filename) {
+    // Check both currentFileHandle and previousFileHandle because showFilePicker
+    // temporarily clears currentFileHandle when opening the picker
+    const isCurrentFile =
+      (appState.currentFileHandle && appState.currentFileHandle.name === filename) ||
+      (appState.previousFileHandle && appState.previousFileHandle.name === filename);
+
+    if (isCurrentFile) {
+      // Clear all file state (current and previous)
       appState.currentFileHandle = null;
       appState.currentFilename = '';
+      appState.previousFileHandle = null;
+      appState.previousFilename = '';
       appState.isDirty = false;
+      appState.isNavigatingBreadcrumbs = false;
+
+      // Reset editor to blank state
       initEditor('', 'untitled').then(() => updateBreadcrumb());
     }
 

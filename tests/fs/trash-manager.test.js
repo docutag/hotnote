@@ -168,6 +168,42 @@ describe('TrashManager', () => {
     });
   });
 
+  describe('moveToTrash - currently open file', () => {
+    it('should call onFileDeleted with filename when deleting currently open file', async () => {
+      await trashManager.moveToTrash(mockDirHandle, mockFileHandle);
+
+      expect(callbacks.onFileDeleted).toHaveBeenCalledWith('file.txt');
+      expect(callbacks.onFileDeleted).toHaveBeenCalledTimes(1);
+    });
+
+    it('should refresh file picker after deleting currently open file', async () => {
+      await trashManager.moveToTrash(mockDirHandle, mockFileHandle);
+
+      expect(callbacks.refreshFilePicker).toHaveBeenCalledWith(mockDirHandle);
+      expect(callbacks.refreshFilePicker).toHaveBeenCalledTimes(1);
+    });
+
+    it('should remove file from directory after deletion', async () => {
+      expect(mockDirHandle._hasEntry('file.txt')).toBe(true);
+
+      await trashManager.moveToTrash(mockDirHandle, mockFileHandle);
+
+      expect(mockDirHandle._hasEntry('file.txt')).toBe(false);
+    });
+
+    it('should call callbacks in correct order: onFileDeleted then refreshFilePicker', async () => {
+      const callOrder = [];
+      callbacks.onFileDeleted = vi.fn(() => callOrder.push('onFileDeleted'));
+      callbacks.refreshFilePicker = vi.fn(() => callOrder.push('refreshFilePicker'));
+
+      trashManager = new TrashManager(callbacks);
+
+      await trashManager.moveToTrash(mockDirHandle, mockFileHandle);
+
+      expect(callOrder).toEqual(['onFileDeleted', 'refreshFilePicker']);
+    });
+  });
+
   describe('restoreFromTrash', () => {
     beforeEach(async () => {
       // Setup: move a file to trash first

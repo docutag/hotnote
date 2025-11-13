@@ -276,4 +276,40 @@ test.describe('File Picker', () => {
     // This requires File System Access API mocking
     // Placeholder for actual implementation
   });
+
+  test.skip('should keep file picker open with blank editor when deleting currently open file', async ({
+    page,
+  }) => {
+    await page.goto('/');
+
+    // This test verifies that deleting the currently open file keeps the file picker
+    // visible with a blank editor, rather than returning to the welcome screen.
+    //
+    // Steps:
+    // 1. Mock File System Access API with a workspace folder containing files:
+    //    - /workspace/file1.md ("# File 1\n\nContent here")
+    //    - /workspace/file2.md ("# File 2\n\nOther content")
+    // 2. Open file1.md (click on it in file picker)
+    // 3. Verify file picker closes and editor shows file1.md content
+    // 4. Verify breadcrumb shows: workspace > file1.md
+    // 5. Open file picker again (click navbar or breadcrumb)
+    // 6. Click the trash/delete button next to file1.md
+    // 7. Confirm deletion in the confirmation dialog
+    //
+    // Expected behavior after deletion:
+    // 1. File picker should remain visible (not hidden)
+    // 2. File picker should show the workspace directory listing (without file1.md)
+    // 3. Editor should show blank/untitled state (empty content)
+    // 4. Editor should NOT show the welcome screen
+    // 5. Breadcrumb should show: workspace (no filename)
+    // 6. Editor state should be cleared:
+    //    - currentFileHandle should be null
+    //    - currentFilename should be ''
+    //    - isDirty should be false
+    //
+    // Implementation requires:
+    // - File System Access API mocking
+    // - Mock TrashManager and undo functionality
+    // - Ability to interact with file picker delete buttons
+  });
 });
