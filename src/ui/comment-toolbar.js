@@ -67,6 +67,14 @@ export class CommentToolbar {
   }
 
   /**
+   * Check if currently in rich text (WYSIWYG) mode
+   * @returns {boolean} True if in WYSIWYG mode
+   */
+  isInRichTextMode() {
+    return !!(appState.editorManager && appState.editorManager.currentMode === 'wysiwyg');
+  }
+
+  /**
    * Show the toolbar at a specific position
    * @param {number} x - X coordinate
    * @param {number} y - Y coordinate
@@ -83,7 +91,26 @@ export class CommentToolbar {
       return;
     }
 
+    // Don't show toolbar if settings panel is open
+    if (window.settingsPanel && window.settingsPanel.isOpen) {
+      return;
+    }
+
     this.currentSelection = selection;
+
+    // Check if we're in rich text mode
+    const inRichTextMode = this.isInRichTextMode();
+
+    // Hide comment button in rich text mode, but keep AI button visible
+    const commentBtn = this.toolbar.querySelector('.comment-toolbar-btn');
+    if (commentBtn) {
+      if (inRichTextMode) {
+        commentBtn.style.display = 'none';
+      } else {
+        commentBtn.style.display = '';
+      }
+    }
+
     this.toolbar.classList.add('visible');
 
     // Position the toolbar
