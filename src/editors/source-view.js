@@ -348,6 +348,32 @@ export class SourceView {
   }
 
   /**
+   * Replace the current selection with new text
+   * @param {string} text - Text to insert
+   * @returns {boolean} Success status
+   */
+  replaceSelection(text) {
+    if (!this.view) {
+      return false;
+    }
+
+    try {
+      const state = this.view.state;
+      const selection = state.selection.main;
+
+      this.view.dispatch({
+        changes: { from: selection.from, to: selection.to, insert: text },
+        selection: { anchor: selection.from + text.length },
+      });
+
+      return true;
+    } catch (error) {
+      console.error('[SourceView] Error replacing selection:', error);
+      return false;
+    }
+  }
+
+  /**
    * Get full document text
    * @returns {string} Document text
    */

@@ -56,6 +56,9 @@ import { createAnchor, findAnchorPosition } from './src/utils/text-anchor.js';
 import { validateAllComments } from './src/utils/comment-validator.js';
 import { CommentToolbar } from './src/ui/comment-toolbar.js';
 import { CommentPanel } from './src/ui/comment-panel.js';
+import { SettingsPanel } from './src/ui/settings-panel.js';
+import { createSkeletalLoader } from './src/ui/skeletal-loader.js';
+import { improveText } from './src/services/ai-service.js';
 import {
   EditorView,
   keymap,
@@ -1363,6 +1366,9 @@ const fileSyncManager = createFileSyncManager({
 let commentToolbar = null;
 let commentPanel = null;
 
+// Settings panel
+let settingsPanel = null;
+
 // Helper function to close comment UI elements
 const closeComments = () => {
   if (commentPanel) {
@@ -1380,6 +1386,57 @@ window.closeComments = closeComments;
 window.commentToolbar = commentToolbar;
 window.commentPanel = commentPanel;
 
+// Handle AI text improvement
+async function handleAIImprove(selection) {
+  console.log('[AI] Improving text:', selection);
+
+  const editor = appState.editorManager || appState.editorView;
+  if (!editor || !editor.replaceSelection) {
+    console.error('[AI] Editor not available or missing replaceSelection method');
+    return;
+  }
+
+  // Store original text for error recovery
+  const originalText = selection.text;
+
+  try {
+    // Create skeletal loader
+    const loader = createSkeletalLoader();
+    const loaderHTML = loader.container.outerHTML;
+
+    // Replace selection with loader
+    editor.replaceSelection(loaderHTML);
+
+    console.log('[AI] Calling AI service...');
+
+    // Call AI service
+    const improvedText = await improveText(originalText);
+
+    console.log('[AI] Received improved text:', improvedText);
+
+    // Replace loader with improved text
+    editor.replaceSelection(improvedText);
+
+    console.log('[AI] Text improvement complete');
+  } catch (error) {
+    console.error('[AI] Text improvement failed:', error);
+
+    // Restore original text on error
+    editor.replaceSelection(originalText);
+
+    // Show error to user
+    alert(
+      `AI improvement failed: ${error.message}\n\nPlease check your Ollama configuration in Settings.`
+    );
+  }
+}
+
+// Initialize settings panel
+function initSettingsPanel() {
+  settingsPanel = new SettingsPanel();
+  console.log('[Settings] Settings panel initialized');
+}
+
 // Initialize comment system
 function initCommentSystem() {
   // Skip initialization if in GitHub read-only mode
@@ -1396,7 +1453,7 @@ function initCommentSystem() {
   }
 
   // Create toolbar and panel
-  commentToolbar = new CommentToolbar(editorContainer, handleAddComment);
+  commentToolbar = new CommentToolbar(editorContainer, handleAddComment, handleAIImprove);
   commentPanel = new CommentPanel(document.body, handleReply, handleResolve, handleDelete);
 
   // Link toolbar and panel so they can coordinate visibility
@@ -1921,6 +1978,11 @@ document.getElementById('new-btn').addEventListener('click', () => {
 
   newFile();
 });
+document.getElementById('settings-btn').addEventListener('click', () => {
+  if (settingsPanel) {
+    settingsPanel.open();
+  }
+});
 document.getElementById('back-btn').addEventListener('click', async () => {
   // Save current editor state to history before navigating
   if (appState.currentFileHandle && appState.navigationHistory[appState.historyIndex]) {
@@ -2071,6 +2133,9 @@ initKeyboardManager();
 
 // Initialize theme manager (handles dark/light mode toggle and system preferences)
 initThemeManager();
+
+// Initialize settings panel
+initSettingsPanel();
 
 // Initialize blur state
 updateEditorBlurState();

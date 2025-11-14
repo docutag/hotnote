@@ -8,9 +8,10 @@
 import { appState } from '../state/app-state.js';
 
 export class CommentToolbar {
-  constructor(container, onAddComment) {
+  constructor(container, onAddComment, onAIImprove) {
     this.container = container;
     this.onAddComment = onAddComment;
+    this.onAIImprove = onAIImprove;
     this.toolbar = null;
     this.currentSelection = null;
     this.panel = null; // Reference to comment panel
@@ -36,13 +37,20 @@ export class CommentToolbar {
         </svg>
         <span>Comment</span>
       </button>
+      <button class="ai-toolbar-btn" title="Improve with AI" data-testid="ai-toolbar-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2l2.5 7.5H22L15.5 15l2.5 7.5L12 18l-5.5 4.5L9 15 2.5 9.5h7.5z"></path>
+        </svg>
+        <span>AI</span>
+      </button>
     `;
 
     // Add to body (not container) so it's not clipped or removed
     document.body.appendChild(this.toolbar);
 
     // Event listeners
-    const btn = this.toolbar.querySelector('.comment-toolbar-btn');
+    const commentBtn = this.toolbar.querySelector('.comment-toolbar-btn');
+    const aiBtn = this.toolbar.querySelector('.ai-toolbar-btn');
 
     // Prevent toolbar from stealing focus from editor when clicked
     this.toolbar.addEventListener('mousedown', (e) => {
@@ -50,7 +58,8 @@ export class CommentToolbar {
       e.preventDefault();
     });
 
-    btn.addEventListener('click', () => this.handleAddComment());
+    commentBtn.addEventListener('click', () => this.handleAddComment());
+    aiBtn.addEventListener('click', () => this.handleAIImprove());
 
     // Hide toolbar on scroll to prevent it from becoming detached from text
     this.scrollHandler = () => this.hide();
@@ -104,6 +113,16 @@ export class CommentToolbar {
   handleAddComment() {
     if (this.currentSelection && this.onAddComment) {
       this.onAddComment(this.currentSelection);
+    }
+    this.hide();
+  }
+
+  /**
+   * Handle AI improve button click
+   */
+  handleAIImprove() {
+    if (this.currentSelection && this.onAIImprove) {
+      this.onAIImprove(this.currentSelection);
     }
     this.hide();
   }

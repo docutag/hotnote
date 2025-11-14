@@ -218,6 +218,18 @@ export class EditorManager {
   }
 
   /**
+   * Replace the current selection with new text
+   * @param {string} text - Text to insert
+   * @returns {boolean} Success status
+   */
+  replaceSelection(text) {
+    if (!this.currentEditor || !this.currentEditor.replaceSelection) {
+      return false;
+    }
+    return this.currentEditor.replaceSelection(text);
+  }
+
+  /**
    * Get full document text
    * @returns {string} Document text
    */

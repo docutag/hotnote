@@ -612,6 +612,34 @@ export class WYSIWYGView {
   }
 
   /**
+   * Replace the current selection with new text
+   * @param {string} text - Text to insert
+   * @returns {boolean} Success status
+   */
+  replaceSelection(text) {
+    if (!this.editor) {
+      return false;
+    }
+
+    try {
+      return this.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const { state, dispatch } = view;
+        const { from, to } = state.selection;
+
+        // Create transaction to replace selection
+        const tr = state.tr.replaceWith(from, to, state.schema.text(text));
+
+        dispatch(tr);
+        return true;
+      });
+    } catch (error) {
+      console.error('[WYSIWYGView] Error replacing selection:', error);
+      return false;
+    }
+  }
+
+  /**
    * Get full document text
    * @returns {string} Document text
    */
