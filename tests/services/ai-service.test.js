@@ -454,4 +454,112 @@ Some text to improve`;
       expect(body.prompt).toContain('Instruction 3');
     });
   });
+
+  describe('Text replacement behavior', () => {
+    it('should return only the improved text without comments', async () => {
+      const mockResponse = {
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          response: 'The improved sentence.',
+        }),
+      };
+
+      global.fetch.mockResolvedValue(mockResponse);
+
+      const text = `// make this more concise
+This is a very long and wordy sentence that could be much shorter.`;
+
+      const result = await improveText(text);
+
+      // Result should not contain the comment
+      expect(result).toBe('The improved sentence.');
+      expect(result).not.toContain('//');
+      expect(result).not.toContain('make this more concise');
+    });
+
+    it('should handle text with multiple inline comments', async () => {
+      const mockResponse = {
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          response: 'First paragraph improved.\n\nSecond paragraph improved.',
+        }),
+      };
+
+      global.fetch.mockResolvedValue(mockResponse);
+
+      const text = `// improve clarity
+First paragraph needs work.
+
+<!-- simplify language -->
+Second paragraph is too complex.`;
+
+      const result = await improveText(text);
+
+      // Verify comments were used as instructions
+      const callArgs = global.fetch.mock.calls[0][1];
+      const body = JSON.parse(callArgs.body);
+
+      expect(body.prompt).toContain('improve clarity');
+      expect(body.prompt).toContain('simplify language');
+      expect(body.prompt).toContain('First paragraph needs work.');
+      expect(body.prompt).toContain('Second paragraph is too complex.');
+
+      // Verify result doesn't contain comments
+      expect(result).not.toContain('//');
+      expect(result).not.toContain('<!--');
+      expect(result).not.toContain('-->');
+    });
+
+    it('should preserve structure when only text content changes', async () => {
+      const mockResponse = {
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          response: 'This is improved text.',
+        }),
+      };
+
+      global.fetch.mockResolvedValue(mockResponse);
+
+      const originalText = 'This is original text.';
+      const result = await improveText(originalText);
+
+      // Should return improved text that can replace the original
+      expect(result).toBe('This is improved text.');
+      expect(typeof result).toBe('string');
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it('should handle empty result from AI', async () => {
+      const mockResponse = {
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          response: '',
+        }),
+      };
+
+      global.fetch.mockResolvedValue(mockResponse);
+
+      const text = 'Some text';
+      const result = await improveText(text);
+
+      expect(result).toBe('');
+    });
+
+    it('should preserve whitespace and formatting in response', async () => {
+      const mockResponse = {
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          response: 'Line one.\n\nLine two.\n  Indented line.',
+        }),
+      };
+
+      global.fetch.mockResolvedValue(mockResponse);
+
+      const text = 'Multiline text';
+      const result = await improveText(text);
+
+      expect(result).toContain('\n\n');
+      expect(result).toContain('  Indented');
+    });
+  });
 });

@@ -6,10 +6,11 @@
 import { getSettings, updateSettings, validateEndpointUrl } from '../state/settings-manager.js';
 
 export class SettingsPanel {
-  constructor() {
+  constructor(options = {}) {
     this.panel = null;
     this.overlay = null;
     this.isOpen = false;
+    this.getEditor = options.getEditor || null;
   }
 
   /**
@@ -42,6 +43,41 @@ export class SettingsPanel {
     header.appendChild(title);
     header.appendChild(closeButton);
 
+    // Privacy info banner
+    const infoBanner = document.createElement('div');
+    infoBanner.className = 'settings-info-banner';
+
+    const infoIcon = document.createElement('span');
+    infoIcon.className = 'settings-info-icon';
+    infoIcon.innerHTML = '🔒';
+
+    const infoText = document.createElement('div');
+    infoText.className = 'settings-info-text';
+
+    const infoTitle = document.createElement('strong');
+    infoTitle.textContent = 'Local-First & Private';
+
+    const infoDescription = document.createElement('p');
+    infoDescription.textContent =
+      'Hotnote is local-first. Your data never leaves your device, and we will never attempt to collect or access your information.';
+
+    const infoLink = document.createElement('p');
+    infoLink.className = 'settings-info-link';
+    const sourceLink = document.createElement('a');
+    sourceLink.href = 'https://github.com/zombar/hotnote.io';
+    sourceLink.target = '_blank';
+    sourceLink.rel = 'noopener noreferrer';
+    sourceLink.textContent = 'source code';
+    sourceLink.setAttribute('data-testid', 'settings-source-code-link');
+    infoLink.appendChild(sourceLink);
+
+    infoText.appendChild(infoTitle);
+    infoText.appendChild(infoDescription);
+    infoText.appendChild(infoLink);
+
+    infoBanner.appendChild(infoIcon);
+    infoBanner.appendChild(infoText);
+
     // Content
     const content = document.createElement('div');
     content.className = 'settings-content';
@@ -70,6 +106,7 @@ export class SettingsPanel {
 
     // Assemble panel
     this.panel.appendChild(header);
+    this.panel.appendChild(infoBanner);
     this.panel.appendChild(content);
     this.panel.appendChild(footer);
 
@@ -125,30 +162,6 @@ export class SettingsPanel {
     modelSection.appendChild(promptGroup);
 
     form.appendChild(modelSection);
-
-    // Advanced Section
-    const advancedSection = this.createSection('Advanced');
-
-    // Temperature
-    const temperatureGroup = this.createFormGroup(
-      'temperature',
-      'Temperature',
-      'range',
-      settings.ollama.temperature,
-      '0.7',
-      { min: 0, max: 1, step: 0.1 }
-    );
-    advancedSection.appendChild(temperatureGroup);
-
-    // Top P
-    const topPGroup = this.createFormGroup('topP', 'Top P', 'range', settings.ollama.topP, '0.9', {
-      min: 0,
-      max: 1,
-      step: 0.1,
-    });
-    advancedSection.appendChild(topPGroup);
-
-    form.appendChild(advancedSection);
 
     return form;
   }
@@ -248,18 +261,6 @@ export class SettingsPanel {
       errors.model = 'Model is required';
     }
 
-    // Validate temperature
-    const temp = parseFloat(data.temperature);
-    if (isNaN(temp) || temp < 0 || temp > 1) {
-      errors.temperature = 'Temperature must be between 0 and 1';
-    }
-
-    // Validate topP
-    const topP = parseFloat(data.topP);
-    if (isNaN(topP) || topP < 0 || topP > 1) {
-      errors.topP = 'Top P must be between 0 and 1';
-    }
-
     return errors;
   }
 
@@ -292,8 +293,6 @@ export class SettingsPanel {
       endpoint: formData.get('endpoint'),
       model: formData.get('model'),
       systemPrompt: formData.get('systemPrompt'),
-      temperature: formData.get('temperature'),
-      topP: formData.get('topP'),
     };
 
     // Validate
@@ -310,8 +309,6 @@ export class SettingsPanel {
         endpoint: data.endpoint,
         model: data.model,
         systemPrompt: data.systemPrompt,
-        temperature: parseFloat(data.temperature),
-        topP: parseFloat(data.topP),
       },
     });
 
@@ -328,6 +325,17 @@ export class SettingsPanel {
 
     if (!this.panel) {
       this.create();
+    }
+
+    // Blur the editor when settings panel opens
+    if (this.getEditor) {
+      const editor = this.getEditor();
+      if (editor && editor.getActiveEditor) {
+        const activeEditor = editor.getActiveEditor();
+        if (activeEditor && activeEditor.view && activeEditor.view.dom) {
+          activeEditor.view.dom.blur();
+        }
+      }
     }
 
     document.body.appendChild(this.overlay);
@@ -372,6 +380,14 @@ export class SettingsPanel {
     if (this.escHandler) {
       document.removeEventListener('keydown', this.escHandler);
       this.escHandler = null;
+    }
+
+    // Restore focus to the editor when settings panel closes
+    if (this.getEditor) {
+      const editor = this.getEditor();
+      if (editor && editor.focus) {
+        editor.focus();
+      }
     }
   }
 

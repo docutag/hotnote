@@ -8,6 +8,12 @@ import {
   getLanguageExtension,
   isMarkdownFile,
 } from './src/editor/language-support.js';
+import {
+  addCommentDecoration,
+  removeCommentDecoration,
+  commentDecorationField,
+  commentClickHandler,
+} from './src/editors/source-view.js';
 import { createAutosaveManager, animateAutosaveLabel } from './src/editor/autosave.js';
 import { createFileSyncManager } from './src/storage/file-sync.js';
 import { appState } from './src/state/app-state.js';
@@ -57,7 +63,6 @@ import { validateAllComments } from './src/utils/comment-validator.js';
 import { CommentToolbar } from './src/ui/comment-toolbar.js';
 import { CommentPanel } from './src/ui/comment-panel.js';
 import { SettingsPanel } from './src/ui/settings-panel.js';
-import { createSkeletalLoader } from './src/ui/skeletal-loader.js';
 import { improveText } from './src/services/ai-service.js';
 import {
   EditorView,
@@ -346,6 +351,8 @@ const initCodeMirrorEditor = async (
     crosshairCursor(),
     highlightActiveLine(),
     highlightSelectionMatches(),
+    commentDecorationField,
+    commentClickHandler(),
     keymap.of([
       ...closeBracketsKeymap,
       ...defaultKeymap,
@@ -463,6 +470,76 @@ const initCodeMirrorEditor = async (
     // Note: This is a simplified version - for full functionality,
     // we might need to refactor the decoration system
     console.log('[CodeMirror] Apply comment decorations:', comments.length);
+  };
+
+  // Add replaceSelection method for AI feature compatibility
+  appState.editorView.replaceSelection = function (text) {
+    if (!this.state) {
+      return false;
+    }
+
+    try {
+      const selection = this.state.selection.main;
+
+      this.dispatch({
+        changes: { from: selection.from, to: selection.to, insert: text },
+        selection: { anchor: selection.from + text.length },
+      });
+
+      return true;
+    } catch (error) {
+      console.error('[CodeMirror] Error replacing selection:', error);
+      return false;
+    }
+  };
+
+  // Add replaceRange method for AI feature compatibility
+  appState.editorView.replaceRange = function (from, to, text) {
+    if (!this.state) {
+      return false;
+    }
+
+    try {
+      this.dispatch({
+        changes: { from, to, insert: text },
+        selection: { anchor: from + text.length },
+      });
+
+      return true;
+    } catch (error) {
+      console.error('[CodeMirror] Error replacing range:', error);
+      return false;
+    }
+  };
+
+  // Add AI loading decoration methods for AI feature compatibility
+  // Reuses the decoration system from source-view.js
+  appState.editorView.addAILoadingDecoration = function (from, to) {
+    if (!this.state) return;
+
+    console.log('[CodeMirror] Adding AI loading decoration:', { from, to });
+
+    this.dispatch({
+      effects: addCommentDecoration.of({
+        commentId: '__ai_loading__',
+        from,
+        to,
+        isActive: true,
+        cssClass: 'ai-loading-highlight',
+      }),
+    });
+
+    console.log('[CodeMirror] AI loading decoration applied');
+  };
+
+  appState.editorView.removeAILoadingDecoration = function () {
+    console.log('[CodeMirror] Removing AI loading decoration');
+
+    if (!this.state) return;
+
+    this.dispatch({
+      effects: removeCommentDecoration.of('__ai_loading__'),
+    });
   };
 
   // Add scroll listener to save editor state
@@ -1391,21 +1468,34 @@ async function handleAIImprove(selection) {
   console.log('[AI] Improving text:', selection);
 
   const editor = appState.editorManager || appState.editorView;
-  if (!editor || !editor.replaceSelection) {
-    console.error('[AI] Editor not available or missing replaceSelection method');
+  if (!editor) {
+    console.error('[AI] Editor not available');
     return;
   }
 
-  // Store original text for error recovery
-  const originalText = selection.text;
+  // Store selection positions and original text for error recovery
+  const { from, to, text: originalText } = selection;
 
   try {
-    // Create skeletal loader
-    const loader = createSkeletalLoader();
-    const loaderHTML = loader.container.outerHTML;
+    // Disable autosave when AI makes edits
+    if (autosaveManager && autosaveManager.isRunning()) {
+      autosaveManager.stop();
+      appState.setAutosaveEnabled(false);
+      console.log('[AI] Autosave disabled during AI operation');
 
-    // Replace selection with loader
-    editor.replaceSelection(loaderHTML);
+      // Update autosave checkbox UI
+      const autosaveCheckbox = document.getElementById('autosave-checkbox');
+      if (autosaveCheckbox) {
+        autosaveCheckbox.checked = false;
+        // Animate label to show autosave is off
+        animateAutosaveLabel(false);
+      }
+    }
+
+    // Apply AI loading decoration (pulsating outline) to keep text visible
+    if (editor.addAILoadingDecoration) {
+      editor.addAILoadingDecoration(from, to);
+    }
 
     console.log('[AI] Calling AI service...');
 
@@ -1414,15 +1504,33 @@ async function handleAIImprove(selection) {
 
     console.log('[AI] Received improved text:', improvedText);
 
-    // Replace loader with improved text
-    editor.replaceSelection(improvedText);
+    // Remove loading decoration
+    if (editor.removeAILoadingDecoration) {
+      editor.removeAILoadingDecoration();
+    }
+
+    // Replace text at original selection positions with improved version
+    if (editor.replaceRange) {
+      editor.replaceRange(from, to, improvedText);
+    } else if (editor.replaceSelection) {
+      // Fallback for editors without replaceRange
+      editor.replaceSelection(improvedText);
+    }
+
+    // Refresh comment decorations to restore any existing comment highlights
+    refreshCommentDecorations();
 
     console.log('[AI] Text improvement complete');
   } catch (error) {
     console.error('[AI] Text improvement failed:', error);
 
-    // Restore original text on error
-    editor.replaceSelection(originalText);
+    // Remove loading decoration on error
+    if (editor.removeAILoadingDecoration) {
+      editor.removeAILoadingDecoration();
+    }
+
+    // Refresh comment decorations to restore any existing comment highlights
+    refreshCommentDecorations();
 
     // Show error to user
     alert(
@@ -1433,7 +1541,9 @@ async function handleAIImprove(selection) {
 
 // Initialize settings panel
 function initSettingsPanel() {
-  settingsPanel = new SettingsPanel();
+  settingsPanel = new SettingsPanel({
+    getEditor: () => appState.editorManager || appState.editorView,
+  });
   console.log('[Settings] Settings panel initialized');
 }
 

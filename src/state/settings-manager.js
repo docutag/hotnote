@@ -10,7 +10,7 @@ const DEFAULT_SETTINGS = {
     endpoint: 'http://localhost:11434',
     model: 'llama2',
     systemPrompt:
-      'You are a helpful AI assistant. Improve the provided text while maintaining its original meaning and tone.',
+      'You are a helpful AI assistant. Improve the provided text while maintaining its original meaning and tone. Include only the replacement text in your response.',
     temperature: 0.7,
     topP: 0.9,
   },
@@ -64,9 +64,18 @@ function validateSettings(settings) {
 
   // Validate Ollama settings
   if (validated.ollama) {
-    // Validate endpoint URL
+    // Normalize and validate endpoint URL
+    if (validated.ollama.endpoint && typeof validated.ollama.endpoint === 'string') {
+      // Trim whitespace and remove trailing slashes
+      validated.ollama.endpoint = validated.ollama.endpoint.trim().replace(/\/+$/, '');
+    }
     if (!validateEndpointUrl(validated.ollama.endpoint)) {
       validated.ollama.endpoint = DEFAULT_SETTINGS.ollama.endpoint;
+    }
+
+    // Normalize model name
+    if (validated.ollama.model && typeof validated.ollama.model === 'string') {
+      validated.ollama.model = validated.ollama.model.trim();
     }
 
     // Clamp temperature to 0-1

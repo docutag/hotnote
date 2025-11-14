@@ -24,7 +24,7 @@ describe('Settings Manager', () => {
           endpoint: 'http://localhost:11434',
           model: 'llama2',
           systemPrompt:
-            'You are a helpful AI assistant. Improve the provided text while maintaining its original meaning and tone.',
+            'You are a helpful AI assistant. Improve the provided text while maintaining its original meaning and tone. Include only the replacement text in your response.',
           temperature: 0.7,
           topP: 0.9,
         },

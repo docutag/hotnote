@@ -2221,6 +2221,33 @@ body[data-has-workspace='true'] .app-footer {
   background-color: var(--comment-highlight-active-bg);
 }
 
+/* AI Loading Decoration */
+.ai-loading-highlight {
+  outline: 3px solid var(--brand-purple);
+  outline-offset: -1px;
+  border-radius: 2px;
+  background-color: rgb(123 63 242 / 10%);
+  animation: ai-pulse 1.2s ease-in-out infinite;
+  cursor: wait;
+}
+
+[data-theme='dark'] .ai-loading-highlight {
+  background-color: rgb(147 87 255 / 15%);
+}
+
+@keyframes ai-pulse {
+  0%,
+  100% {
+    outline-color: var(--brand-purple);
+    outline-width: 3px;
+  }
+
+  50% {
+    outline-color: var(--brand-cyan);
+    outline-width: 4px;
+  }
+}
+
 /* Comment Toolbar Button */
 .comment-toolbar {
   position: fixed;
@@ -2627,6 +2654,67 @@ body.dark .comment-panel {
 
 .settings-close-button:hover {
   background: var(--bg-tertiary);
+}
+
+/* Settings Info Banner */
+.settings-info-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, rgb(123 63 242 / 8%) 0%, rgb(0 200 255 / 8%) 100%);
+  border-bottom: 1px solid rgb(123 63 242 / 15%);
+}
+
+.settings-info-icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.settings-info-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-info-text strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: block;
+}
+
+.settings-info-text p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.settings-info-link {
+  margin-top: 4px;
+}
+
+.settings-info-link a {
+  color: var(--brand-purple);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.settings-info-link a:hover {
+  color: var(--brand-cyan);
+  text-decoration: underline;
+}
+
+/* Dark mode adjustments for info banner */
+[data-theme='dark'] .settings-info-banner {
+  background: linear-gradient(135deg, rgb(123 63 242 / 12%) 0%, rgb(0 200 255 / 12%) 100%);
+  border-bottom-color: rgb(123 63 242 / 20%);
 }
 
 /* Settings Content */

@@ -85,8 +85,11 @@ export async function callOllama(endpoint, model, prompt, temperature, topP, tim
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
+  // Normalize endpoint - remove trailing slashes
+  const normalizedEndpoint = endpoint.replace(/\/+$/, '');
+
   try {
-    const response = await fetch(`${endpoint}/api/generate`, {
+    const response = await fetch(`${normalizedEndpoint}/api/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -106,6 +109,12 @@ export async function callOllama(endpoint, model, prompt, temperature, topP, tim
     clearTimeout(timeoutId);
 
     if (!response.ok) {
+      // Provide more helpful error messages
+      if (response.status === 404) {
+        throw new Error(
+          `Model "${model}" not found. Please check that the model is installed on your Ollama server (run: ollama list)`
+        );
+      }
       throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
     }
 
@@ -115,7 +124,14 @@ export async function callOllama(endpoint, model, prompt, temperature, topP, tim
     clearTimeout(timeoutId);
 
     if (error.name === 'AbortError') {
-      throw new Error('Request timeout');
+      throw new Error('Request timeout - Ollama server took too long to respond');
+    }
+
+    // Network errors (server not reachable)
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(
+        `Cannot connect to Ollama server at ${normalizedEndpoint}. Please verify the server is running and the endpoint URL is correct.`
+      );
     }
 
     throw error;
