@@ -73,14 +73,14 @@ const brandHighlightStyleDark = HighlightStyle.define([
   { tag: tags.constant(tags.variableName), color: '#c8bce8' }, // lighter muted purple
 ]);
 
-// Comment decoration effects
-const addCommentDecoration = StateEffect.define();
-const removeCommentDecoration = StateEffect.define();
-const clearCommentDecorations = StateEffect.define();
-const setActiveComment = StateEffect.define();
+// Comment decoration effects (exported for reuse in app.js)
+export const addCommentDecoration = StateEffect.define();
+export const removeCommentDecoration = StateEffect.define();
+export const clearCommentDecorations = StateEffect.define();
+export const setActiveComment = StateEffect.define();
 
-// Comment decoration state field
-const commentDecorationField = StateField.define({
+// Comment decoration state field (exported for reuse in app.js)
+export const commentDecorationField = StateField.define({
   create() {
     return { decorations: Decoration.none, activeCommentId: null, onCommentClick: null };
   },
@@ -90,8 +90,9 @@ const commentDecorationField = StateField.define({
 
     for (const effect of tr.effects) {
       if (effect.is(addCommentDecoration)) {
-        const { commentId, from, to, isActive } = effect.value;
-        const className = isActive ? 'comment-highlight active' : 'comment-highlight';
+        const { commentId, from, to, isActive, cssClass } = effect.value;
+        // Use custom CSS class if provided, otherwise use default comment highlight classes
+        const className = cssClass || (isActive ? 'comment-highlight active' : 'comment-highlight');
         const deco = Decoration.mark({
           class: className,
           attributes: { 'data-comment-id': commentId },
@@ -117,8 +118,8 @@ const commentDecorationField = StateField.define({
   provide: (f) => EditorView.decorations.from(f, (state) => state.decorations),
 });
 
-// Handle clicks on comment decorations
-function commentClickHandler(_view) {
+// Handle clicks on comment decorations (exported for reuse in app.js)
+export function commentClickHandler(_view) {
   return EditorView.domEventHandlers({
     click: (event, view) => {
       const target = event.target;
@@ -348,6 +349,57 @@ export class SourceView {
   }
 
   /**
+   * Replace the current selection with new text
+   * @param {string} text - Text to insert
+   * @returns {boolean} Success status
+   */
+  replaceSelection(text) {
+    if (!this.view) {
+      return false;
+    }
+
+    try {
+      const state = this.view.state;
+      const selection = state.selection.main;
+
+      this.view.dispatch({
+        changes: { from: selection.from, to: selection.to, insert: text },
+        selection: { anchor: selection.from + text.length },
+      });
+
+      return true;
+    } catch (error) {
+      console.error('[SourceView] Error replacing selection:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Replace text at specific positions
+   * @param {number} from - Start position
+   * @param {number} to - End position
+   * @param {string} text - Text to insert
+   * @returns {boolean} Success status
+   */
+  replaceRange(from, to, text) {
+    if (!this.view) {
+      return false;
+    }
+
+    try {
+      this.view.dispatch({
+        changes: { from, to, insert: text },
+        selection: { anchor: from + text.length },
+      });
+
+      return true;
+    } catch (error) {
+      console.error('[SourceView] Error replacing range:', error);
+      return false;
+    }
+  }
+
+  /**
    * Get full document text
    * @returns {string} Document text
    */
@@ -443,5 +495,36 @@ export class SourceView {
     }
 
     this.view.dispatch({ effects });
+  }
+
+  /**
+   * Add temporary AI loading decoration to selected text
+   * @param {number} from - Start position
+   * @param {number} to - End position
+   */
+  addAILoadingDecoration(from, to) {
+    if (!this.view) return;
+
+    console.log('[SourceView] Adding AI loading decoration:', { from, to });
+
+    this.view.dispatch({
+      effects: addCommentDecoration.of({
+        commentId: '__ai_loading__',
+        from,
+        to,
+        isActive: true,
+        cssClass: 'ai-loading-highlight',
+      }),
+    });
+
+    console.log('[SourceView] AI loading decoration applied');
+  }
+
+  /**
+   * Remove AI loading decoration
+   */
+  removeAILoadingDecoration() {
+    console.log('[SourceView] Removing AI loading decoration');
+    this.removeCommentDecoration('__ai_loading__');
   }
 }

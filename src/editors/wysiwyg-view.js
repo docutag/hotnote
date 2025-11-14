@@ -71,13 +71,15 @@ function createCommentDecorationPlugin() {
 }
 
 // Helper function to create decoration set from comments
-function createDecorationSet(doc, comments, activeCommentId) {
+function createDecorationSet(doc, comments, activeCommentId, customClass = null) {
   const decorations = [];
 
   for (const comment of comments) {
-    const { id, position } = comment;
+    const { id, position, cssClass } = comment;
     const isActive = id === activeCommentId;
-    const className = isActive ? 'comment-highlight active' : 'comment-highlight';
+    // Use custom CSS class if provided, otherwise use default comment highlight classes
+    const className =
+      cssClass || customClass || (isActive ? 'comment-highlight active' : 'comment-highlight');
 
     // Ensure positions are within document bounds
     // Note: ProseMirror positions need adjustment - add 1 to account for document structure
@@ -612,6 +614,63 @@ export class WYSIWYGView {
   }
 
   /**
+   * Replace the current selection with new text
+   * @param {string} text - Text to insert
+   * @returns {boolean} Success status
+   */
+  replaceSelection(text) {
+    if (!this.editor) {
+      return false;
+    }
+
+    try {
+      return this.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const { state, dispatch } = view;
+        const { from, to } = state.selection;
+
+        // Create transaction to replace selection
+        const tr = state.tr.replaceWith(from, to, state.schema.text(text));
+
+        dispatch(tr);
+        return true;
+      });
+    } catch (error) {
+      console.error('[WYSIWYGView] Error replacing selection:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Replace text at specific positions
+   * @param {number} from - Start position
+   * @param {number} to - End position
+   * @param {string} text - Text to insert
+   * @returns {boolean} Success status
+   */
+  replaceRange(from, to, text) {
+    if (!this.editor) {
+      return false;
+    }
+
+    try {
+      return this.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const { state, dispatch } = view;
+
+        // Create transaction to replace the specified range
+        const tr = state.tr.replaceWith(from, to, state.schema.text(text));
+
+        dispatch(tr);
+        return true;
+      });
+    } catch (error) {
+      console.error('[WYSIWYGView] Error replacing range:', error);
+      return false;
+    }
+  }
+
+  /**
    * Get full document text
    * @returns {string} Document text
    */
@@ -708,6 +767,50 @@ export class WYSIWYGView {
     console.warn(
       '[WYSIWYGView] removeCommentDecoration not fully implemented - use applyCommentDecorations instead'
     );
+  }
+
+  /**
+   * Add temporary AI loading decoration to selected text
+   * @param {number} from - Start position
+   * @param {number} to - End position
+   */
+  addAILoadingDecoration(from, to) {
+    if (!this.editor) return;
+
+    console.log('[WYSIWYGView] Adding AI loading decoration:', { from, to });
+
+    try {
+      this.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const tr = view.state.tr;
+
+        tr.setMeta(commentDecorationKey, {
+          action: 'add',
+          comments: [
+            {
+              id: '__ai_loading__',
+              position: { from: from - 1, to: to - 1 }, // Adjust for ProseMirror positions
+              cssClass: 'ai-loading-highlight',
+            },
+          ],
+          activeCommentId: '__ai_loading__',
+          onCommentClick: null,
+        });
+
+        view.dispatch(tr);
+        console.log('[WYSIWYGView] AI loading decoration applied');
+      });
+    } catch (error) {
+      console.error('[WYSIWYGView] Error adding AI loading decoration:', error);
+    }
+  }
+
+  /**
+   * Remove AI loading decoration
+   */
+  removeAILoadingDecoration() {
+    console.log('[WYSIWYGView] Removing AI loading decoration');
+    this.clearCommentDecorations();
   }
 
   /**

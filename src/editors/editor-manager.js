@@ -218,6 +218,32 @@ export class EditorManager {
   }
 
   /**
+   * Replace the current selection with new text
+   * @param {string} text - Text to insert
+   * @returns {boolean} Success status
+   */
+  replaceSelection(text) {
+    if (!this.currentEditor || !this.currentEditor.replaceSelection) {
+      return false;
+    }
+    return this.currentEditor.replaceSelection(text);
+  }
+
+  /**
+   * Replace text at specific positions
+   * @param {number} from - Start position
+   * @param {number} to - End position
+   * @param {string} text - Text to insert
+   * @returns {boolean} Success status
+   */
+  replaceRange(from, to, text) {
+    if (!this.currentEditor || !this.currentEditor.replaceRange) {
+      return false;
+    }
+    return this.currentEditor.replaceRange(from, to, text);
+  }
+
+  /**
    * Get full document text
    * @returns {string} Document text
    */
@@ -226,6 +252,32 @@ export class EditorManager {
       return '';
     }
     return this.currentEditor.getDocumentText();
+  }
+
+  /**
+   * Add AI loading decoration to text range
+   * @param {number} from - Start position
+   * @param {number} to - End position
+   */
+  addAILoadingDecoration(from, to) {
+    console.log('[EditorManager] Adding AI loading decoration:', { from, to });
+    if (this.currentEditor && this.currentEditor.addAILoadingDecoration) {
+      this.currentEditor.addAILoadingDecoration(from, to);
+    } else {
+      console.warn('[EditorManager] Current editor does not support addAILoadingDecoration');
+    }
+  }
+
+  /**
+   * Remove AI loading decoration
+   */
+  removeAILoadingDecoration() {
+    console.log('[EditorManager] Removing AI loading decoration');
+    if (this.currentEditor && this.currentEditor.removeAILoadingDecoration) {
+      this.currentEditor.removeAILoadingDecoration();
+    } else {
+      console.warn('[EditorManager] Current editor does not support removeAILoadingDecoration');
+    }
   }
 
   /**

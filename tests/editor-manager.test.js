@@ -35,6 +35,14 @@ vi.mock('../src/editors/source-view.js', () => ({
     getDocumentText() {
       return this.content;
     }
+    replaceSelection(text) {
+      this.content = this.content.substring(0, 10) + text + this.content.substring(20);
+      return true;
+    }
+    replaceRange(from, to, text) {
+      this.content = this.content.substring(0, from) + text + this.content.substring(to);
+      return true;
+    }
   },
 }));
 
@@ -77,6 +85,14 @@ vi.mock('../src/editors/wysiwyg-view.js', () => ({
     }
     getDocumentText() {
       return this.content;
+    }
+    replaceSelection(text) {
+      this.content = this.content.substring(0, 5) + text + this.content.substring(15);
+      return true;
+    }
+    replaceRange(from, to, text) {
+      this.content = this.content.substring(0, from) + text + this.content.substring(to);
+      return true;
     }
   },
 }));
@@ -347,6 +363,123 @@ describe('EditorManager', () => {
       manager.getDocumentText();
 
       expect(spy).toHaveBeenCalled();
+    });
+  });
+
+  describe('Text replacement', () => {
+    it('should replace text at specific positions using replaceRange', async () => {
+      const manager = new EditorManager(
+        container,
+        'source',
+        'hello world, this is a test',
+        onChange
+      );
+      await manager.ready();
+
+      const spy = vi.spyOn(manager.currentEditor, 'replaceRange');
+      const result = manager.replaceRange(0, 5, 'goodbye');
+
+      expect(spy).toHaveBeenCalledWith(0, 5, 'goodbye');
+      expect(result).toBe(true);
+      expect(manager.currentEditor.content).toBe('goodbye world, this is a test');
+    });
+
+    it('should replace text in middle of document', async () => {
+      const manager = new EditorManager(
+        container,
+        'source',
+        'hello world, this is a test',
+        onChange
+      );
+      await manager.ready();
+
+      manager.replaceRange(6, 11, 'everyone');
+
+      expect(manager.currentEditor.content).toBe('hello everyone, this is a test');
+    });
+
+    it('should handle empty replacement text', async () => {
+      const manager = new EditorManager(
+        container,
+        'source',
+        'hello world, this is a test',
+        onChange
+      );
+      await manager.ready();
+
+      manager.replaceRange(5, 11, '');
+
+      expect(manager.currentEditor.content).toBe('hello, this is a test');
+    });
+
+    it('should preserve text outside replacement range', async () => {
+      const manager = new EditorManager(container, 'source', 'The quick brown fox', onChange);
+      await manager.ready();
+
+      manager.replaceRange(4, 9, 'slow');
+
+      expect(manager.currentEditor.content).toBe('The slow brown fox');
+    });
+
+    it('should return false when no editor available', () => {
+      const manager = new EditorManager(container, 'source', 'content', onChange);
+      manager.currentEditor = null;
+
+      const result = manager.replaceRange(0, 5, 'text');
+
+      expect(result).toBe(false);
+    });
+
+    it('should work with WYSIWYG editor', async () => {
+      const manager = new EditorManager(container, 'wysiwyg', 'original text here', onChange);
+      await manager.ready();
+
+      const spy = vi.spyOn(manager.currentEditor, 'replaceRange');
+      manager.replaceRange(0, 8, 'modified');
+
+      expect(spy).toHaveBeenCalledWith(0, 8, 'modified');
+      expect(manager.currentEditor.content).toBe('modified text here');
+    });
+
+    it('should handle AI improvement workflow - replace selected text', async () => {
+      const manager = new EditorManager(
+        container,
+        'source',
+        'This is some text that needs improvement.',
+        onChange
+      );
+      await manager.ready();
+
+      // Simulate AI improvement: select "some text" (8-17) and improve it
+      const from = 8;
+      const to = 17;
+      const improvedText = 'excellent content';
+
+      manager.replaceRange(from, to, improvedText);
+
+      expect(manager.currentEditor.content).toBe(
+        'This is excellent content that needs improvement.'
+      );
+    });
+
+    it('should handle AI improvement with comments - only replace text portion', async () => {
+      const manager = new EditorManager(
+        container,
+        'source',
+        'This sentence is verbose. // make it concise',
+        onChange
+      );
+      await manager.ready();
+
+      // Simulate: selected text is "This sentence is verbose. // make it concise"
+      // After comment extraction, AI returns just the improved text without comment
+      const from = 0;
+      const to = 47; // Full length including comment
+      const improvedText = 'This is concise.';
+
+      manager.replaceRange(from, to, improvedText);
+
+      expect(manager.currentEditor.content).toBe('This is concise.');
     });
   });
 });
