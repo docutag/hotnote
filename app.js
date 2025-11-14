@@ -1463,6 +1463,9 @@ window.closeComments = closeComments;
 window.commentToolbar = commentToolbar;
 window.commentPanel = commentPanel;
 
+// Expose settings panel for testing and toolbar access
+window.settingsPanel = settingsPanel;
+
 // Handle AI text improvement
 async function handleAIImprove(selection) {
   console.log('[AI] Improving text:', selection);
@@ -1544,6 +1547,7 @@ function initSettingsPanel() {
   settingsPanel = new SettingsPanel({
     getEditor: () => appState.editorManager || appState.editorView,
   });
+  window.settingsPanel = settingsPanel; // Update window reference
   console.log('[Settings] Settings panel initialized');
 }
 
@@ -1597,6 +1601,13 @@ function setupSelectionListener() {
       if (appState.isGitHubMode || appState.isReadOnly) {
         console.debug('[Comments] Skipping selection handler in read-only mode');
         return;
+      }
+
+      // Skip if in rich text (WYSIWYG) mode - comments only work in code editor
+      if (appState.editorManager && appState.editorManager.currentMode === 'wysiwyg') {
+        console.debug('[Comments] Skipping selection handler in rich text mode');
+        // Still show toolbar for AI features, but comment button will be hidden
+        // Let the toolbar.show() method handle the display logic
       }
 
       const editor = appState.editorManager || appState.editorView;
@@ -1663,6 +1674,16 @@ async function loadCommentsFromSession() {
 function refreshCommentDecorations() {
   const editor = appState.editorManager?.currentEditor || appState.editorView;
   if (!editor) return;
+
+  // Skip decorations in rich text (WYSIWYG) mode - comments only work in code editor
+  if (appState.editorManager && appState.editorManager.currentMode === 'wysiwyg') {
+    console.log('[Comments] Skipping decorations in rich text mode');
+    // Clear any existing decorations
+    if (editor.applyCommentDecorations) {
+      editor.applyCommentDecorations([], null, handleCommentClick);
+    }
+    return;
+  }
 
   const currentFile = getRelativeFilePath();
   const fileComments = appState.getCommentsForFile(currentFile);
