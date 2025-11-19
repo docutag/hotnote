@@ -10,6 +10,8 @@ export class ModelProgressUI {
     this.progressText = null;
     this.statusText = null;
     this.isShowing = false;
+    this.timeouts = []; // Track timeouts for cleanup
+    this.hideTimeout = null; // Track hide animation timeout
   }
 
   /**
@@ -27,6 +29,12 @@ export class ModelProgressUI {
     // Create toast container (bottom-left, non-blocking)
     this.overlay = document.createElement('div');
     this.overlay.className = 'model-progress-toast';
+
+    // Set inline styles for positioning (for compatibility with tests)
+    this.overlay.style.position = 'fixed';
+    this.overlay.style.bottom = '1rem';
+    this.overlay.style.left = '1rem';
+    this.overlay.style.zIndex = '9999';
 
     // Create progress container
     const container = document.createElement('div');
@@ -105,11 +113,17 @@ export class ModelProgressUI {
 
     this.overlay.classList.remove('visible');
 
-    setTimeout(() => {
+    // Clear any existing hide timeout
+    if (this.hideTimeout) {
+      clearTimeout(this.hideTimeout);
+    }
+
+    this.hideTimeout = setTimeout(() => {
       if (this.overlay && this.overlay.parentNode) {
         this.overlay.parentNode.removeChild(this.overlay);
       }
       this.isShowing = false;
+      this.hideTimeout = null;
     }, 300);
   }
 
@@ -187,9 +201,12 @@ export class ModelProgressUI {
       // Add pulse animation to draw attention to queue update
       if (this.statusText) {
         this.statusText.classList.add('updating');
-        setTimeout(() => {
-          this.statusText.classList.remove('updating');
+        const timeoutId = setTimeout(() => {
+          if (this.statusText) {
+            this.statusText.classList.remove('updating');
+          }
         }, 300);
+        this.timeouts.push(timeoutId);
       }
     }
   }
@@ -198,10 +215,30 @@ export class ModelProgressUI {
    * Destroy the progress UI
    */
   destroy() {
-    this.hide();
+    if (!this.overlay) {
+      return;
+    }
+
+    // Clear all pending timeouts
+    this.timeouts.forEach(clearTimeout);
+    this.timeouts = [];
+
+    // Clear hide timeout if pending
+    if (this.hideTimeout) {
+      clearTimeout(this.hideTimeout);
+      this.hideTimeout = null;
+    }
+
+    // Remove overlay immediately (skip animation for destroy)
+    if (this.overlay.parentNode) {
+      this.overlay.parentNode.removeChild(this.overlay);
+    }
+
+    // Clean up references
     this.overlay = null;
     this.progressBar = null;
     this.progressText = null;
     this.statusText = null;
+    this.isShowing = false;
   }
 }

@@ -20,7 +20,7 @@ export function cleanAIResponse(response) {
   // Remove common preambles (case-insensitive)
   const preambles = [
     /^(?:here(?:'s| is)|sure[,!]?|okay[,!]?|certainly[,!]?|of course[,!]?|i(?:'d| would) be happy to|i can help|let me|here you go)[^\n]*(?:\n|:)/gi,
-    /^(?:improved|revised|edited|updated|enhanced|better|new) (?:text|version)[:\s]*\n*/gi,
+    /^(?:improved|revised|edited|updated|enhanced|better|new) (?:text|version)(?::\s*|\s*\n)/gi,
     /^(?:the )?(?:improved|revised|edited) (?:text|version) is[:\s]*\n*/gi,
   ];
 

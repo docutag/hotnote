@@ -148,6 +148,63 @@ function validateSettings(settings) {
     }
   }
 
+  // Validate Ollama settings
+  if (validated.ollama) {
+    // Validate and normalize endpoint URL
+    if (validated.ollama.endpoint) {
+      // Remove trailing slashes
+      validated.ollama.endpoint = validated.ollama.endpoint.replace(/\/+$/, '');
+      // Reset to default if invalid
+      if (!validateEndpointUrl(validated.ollama.endpoint)) {
+        validated.ollama.endpoint = DEFAULT_SETTINGS.ollama.endpoint;
+      }
+    }
+    // Trim model name
+    if (validated.ollama.model && typeof validated.ollama.model === 'string') {
+      validated.ollama.model = validated.ollama.model.trim();
+    }
+    // Clamp temperature
+    if (typeof validated.ollama.temperature === 'number') {
+      validated.ollama.temperature = clamp(validated.ollama.temperature, 0, 1);
+    }
+    // Clamp topP
+    if (typeof validated.ollama.topP === 'number') {
+      validated.ollama.topP = clamp(validated.ollama.topP, 0, 1);
+    }
+  }
+
+  // Validate Claude settings
+  if (validated.claude) {
+    // Trim model name
+    if (validated.claude.model && typeof validated.claude.model === 'string') {
+      validated.claude.model = validated.claude.model.trim();
+    }
+    // Clamp temperature
+    if (typeof validated.claude.temperature === 'number') {
+      validated.claude.temperature = clamp(validated.claude.temperature, 0, 1);
+    }
+    // Clamp topP
+    if (typeof validated.claude.topP === 'number') {
+      validated.claude.topP = clamp(validated.claude.topP, 0, 1);
+    }
+  }
+
+  // Validate OpenAI settings
+  if (validated.openai) {
+    // Trim model name
+    if (validated.openai.model && typeof validated.openai.model === 'string') {
+      validated.openai.model = validated.openai.model.trim();
+    }
+    // Clamp temperature
+    if (typeof validated.openai.temperature === 'number') {
+      validated.openai.temperature = clamp(validated.openai.temperature, 0, 1);
+    }
+    // Clamp topP
+    if (typeof validated.openai.topP === 'number') {
+      validated.openai.topP = clamp(validated.openai.topP, 0, 1);
+    }
+  }
+
   return validated;
 }
 

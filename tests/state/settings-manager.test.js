@@ -59,17 +59,25 @@ describe('Settings Manager', () => {
   describe('loadSettings', () => {
     it('should load settings from localStorage', () => {
       const customSettings = {
-        endpoint: 'http://custom:8080',
-        model: 'mistral',
-        systemPrompt: 'Custom prompt',
-        temperature: 0.5,
-        topP: 0.8,
+        provider: 'ollama',
+        ollama: {
+          endpoint: 'http://custom:8080',
+          model: 'mistral',
+          systemPrompt: 'Custom prompt',
+          temperature: 0.5,
+          topP: 0.8,
+        },
       };
 
       localStorage.setItem('hotnote_settings', JSON.stringify(customSettings));
 
       const loaded = loadSettings();
-      expect(loaded).toEqual(customSettings);
+      expect(loaded.provider).toBe('ollama');
+      expect(loaded.ollama.endpoint).toBe('http://custom:8080');
+      expect(loaded.ollama.model).toBe('mistral');
+      expect(loaded.ollama.systemPrompt).toBe('Custom prompt');
+      expect(loaded.ollama.temperature).toBe(0.5);
+      expect(loaded.ollama.topP).toBe(0.8);
     });
 
     it('should return default settings if localStorage is empty', () => {
@@ -108,17 +116,25 @@ describe('Settings Manager', () => {
   describe('saveSettings', () => {
     it('should save settings to localStorage', () => {
       const settings = {
-        endpoint: 'http://test:1234',
-        model: 'codellama',
-        systemPrompt: 'Test prompt',
-        temperature: 0.3,
-        topP: 0.7,
+        provider: 'ollama',
+        ollama: {
+          endpoint: 'http://test:1234',
+          model: 'codellama',
+          systemPrompt: 'Test prompt',
+          temperature: 0.3,
+          topP: 0.7,
+        },
       };
 
       saveSettings(settings);
 
       const stored = JSON.parse(localStorage.getItem('hotnote_settings'));
-      expect(stored).toEqual(settings);
+      expect(stored.provider).toBe('ollama');
+      expect(stored.ollama.endpoint).toBe('http://test:1234');
+      expect(stored.ollama.model).toBe('codellama');
+      expect(stored.ollama.systemPrompt).toBe('Test prompt');
+      expect(stored.ollama.temperature).toBe(0.3);
+      expect(stored.ollama.topP).toBe(0.7);
     });
 
     it('should validate and normalize endpoint URL', () => {
